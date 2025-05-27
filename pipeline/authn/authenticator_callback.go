@@ -199,16 +199,15 @@ func (a *AuthenticatorCallback) Authenticate(r *http.Request, session *Authentic
 	} else {
 		fmt.Println("Authorization code not found in URL")
 	}
-	s := pipeline.Global()
 	state := requestURL.Query().Get("state")
 	if state != "" {
 		fmt.Println("State:", state)
 	} else {
 		fmt.Println("State not found in URL")
 	}
-	authState := s.MustGet("state") // Assuming session stores it in headers
+	authState := session.Header.Get("state")
 	if authState == "" {
-		fmt.Println("State not found in session")
+		fmt.Println("State not found in auth session")
 		return errors.New("no state found in session - possible session expiry")
 	} else {
 		fmt.Println("State from session:", authState)
@@ -221,7 +220,7 @@ func (a *AuthenticatorCallback) Authenticate(r *http.Request, session *Authentic
 	}
 
 	// Clear the state from the session after validation
-	s.Delete("state")
+	session.Header.Del("state")
 
 	fmt.Println("State is valid. Authorization code:", authCode)
 
@@ -290,19 +289,6 @@ func (a *AuthenticatorCallback) Authenticate(r *http.Request, session *Authentic
 	}
 	// Store the access token in Extra
 	session.Extra["access_token"] = tokenResponse.AccessToken
-	sessionAccessToken, err := s.Get("access_token")
-	if sessionAccessToken == nil || err != nil {
-		s.MustSet("access_token", tokenResponse.AccessToken)
-	} else {
-		s.Update("access_token", tokenResponse.AccessToken)
-	}
-
-	sessionIDToken, err := s.Get("id_token")
-	if sessionIDToken == nil || err != nil {
-		s.MustSet("id_token", tokenResponse.IDToken)
-	} else {
-		s.Update("id_token", tokenResponse.IDToken)
-	}
 	if tokenResponse.IDToken != "" {
 		session.Extra["id_token"] = tokenResponse.IDToken
 	}
@@ -376,7 +362,7 @@ func (a *AuthenticatorCallback) Authenticate(r *http.Request, session *Authentic
 		Sub:         userInfoResponse.Sub,
 		IssuedAt:    time.Now(),
 		ExpiresAt:   time.Now().Add(1 * time.Hour),
-		State:       authState.(string),
+		State:       authState,
 		AccessToken: tokenResponse.AccessToken,
 		IDToken:     tokenResponse.IDToken,
 	}
@@ -385,25 +371,6 @@ func (a *AuthenticatorCallback) Authenticate(r *http.Request, session *Authentic
 	fmt.Printf("Setting session id into authentication session \n")
 	session.SetHeader("wso2_session_id", id)
 	session.Extra["wso2_session_id"] = id
-	// Add this line to store the cookie information for later use
-	cookie := &http.Cookie{
-		Name:     "wso2_session_id",
-		Value:    id,
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   true,
-		MaxAge:   3600, // 1 hour in seconds
-	}
-	r.AddCookie(cookie)
-	session.Extra["set_cookie"] = map[string]interface{}{
-		"name":     "wso2_session_id",
-		"value":    id,
-		"path":     "/",
-		"httpOnly": true,
-		"secure":   true,
-		"maxAge":   3600, // 1 hour in seconds
-	}
-	session.Header.Set("Set-Cookie", fmt.Sprintf("wso2_session_id=%s; Path=/; HttpOnly; Secure; Max-Age=3600", id))
 	return nil
 
 }

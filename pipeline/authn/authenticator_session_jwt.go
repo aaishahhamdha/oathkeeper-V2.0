@@ -17,6 +17,7 @@ import (
 	"github.com/aaishahhamdha/oathkeeper/driver/configuration"
 	"github.com/aaishahhamdha/oathkeeper/helper"
 	"github.com/aaishahhamdha/oathkeeper/pipeline"
+	"github.com/aaishahhamdha/oathkeeper/pipeline/session_store"
 	"github.com/ory/herodot"
 	"github.com/ory/x/jwtx"
 	"github.com/ory/x/otelx"
@@ -74,18 +75,12 @@ func (a *AuthenticatorSessionJWT) Config(config json.RawMessage) (*Authenticator
 }
 
 // BearerTokenFromSession safely extracts the access token from session
-func (a *AuthenticatorSessionJWT) BearerTokenFromSession(s *pipeline.Session) (string, error) {
-	token, err := s.Get("access_token")
-	if err != nil {
-		return "", errors.Wrap(err, "access_token not found in session")
+func (a *AuthenticatorSessionJWT) BearerTokenFromSession(Cookie http.Cookie) (string, error) {
+	token, _ := session_store.GlobalStore.GetField(Cookie.Value, "access_token")
+	if token == "" {
+		return "", errors.New("access_token not found in session")
 	}
-
-	strToken, ok := token.(string)
-	if !ok || strToken == "" {
-		return "", errors.New("invalid access_token format in session")
-	}
-
-	return strToken, nil
+	return token, nil
 }
 
 func (a *AuthenticatorSessionJWT) Authenticate(r *http.Request, session *AuthenticationSession, config json.RawMessage, _ pipeline.Rule) (err error) {
@@ -98,36 +93,12 @@ func (a *AuthenticatorSessionJWT) Authenticate(r *http.Request, session *Authent
 		return err
 	}
 
-	// requestCookies := r.Cookies()
-	// s := pipeline.Global()
-
-	// var commonauthidCookie *http.Cookie
-	// var sessionCookie *http.Cookie
-
-	// for _, cookie := range requestCookies {
-	// 	switch cookie.Name {
-	// 	case "commonauthid":
-	// 		commonauthidCookie = cookie
-	// 	case "session_cookie":
-	// 		sessionCookie = cookie
-	// 	}
-	// }
-
-	// // Handle commonauthid
-	// if s.MustGet("commonauthid") == nil && commonauthidCookie != nil {
-	// 	s.Set("commonauthid", commonauthidCookie.Value)
-	// } else if s.MustGet("commonauthid") != nil && commonauthidCookie != nil {
-	// 	s.Update("commonauthid", commonauthidCookie.Value)
-	// }
-
-	// // Handle session_cookie
-	// if s.MustGet("session_cookie") == nil && sessionCookie != nil {
-	// 	s.Set("session_cookie", sessionCookie.Value)
-	// } else if s.MustGet("session_cookie") != nil && sessionCookie != nil {
-	// 	s.Update("session_cookie", sessionCookie.Value)
-	// }
-
-	token, err := a.BearerTokenFromSession(pipeline.Global())
+	Cookie, err := r.Cookie("wso2_session_id")
+	if err != nil {
+		fmt.Println("error getting cookie:", err)
+		return errors.WithStack(ErrAuthenticatorNotResponsible)
+	}
+	token, err := a.BearerTokenFromSession(*Cookie)
 	if err != nil {
 		fmt.Println("error getting token from session:", err)
 		return errors.WithStack(ErrAuthenticatorNotResponsible)
@@ -175,6 +146,28 @@ func (a *AuthenticatorSessionJWT) Authenticate(r *http.Request, session *Authent
 	session.Subject = jwtx.ParseMapStringInterfaceClaims(claims).Subject
 	session.Extra = claims
 
+	sess, ok := session_store.GlobalStore.GetSession(Cookie.Value)
+	if !ok {
+		return errors.WithStack(ErrAuthenticatorNotResponsible)
+	}
+
+	// Initialize Extra map if it doesn't exist
+	if session.Extra == nil {
+		session.Extra = make(map[string]interface{})
+	}
+
+	// Add all session data to Extra
+	session.Extra["sub"] = sess.Sub
+	session.Extra["username"] = sess.Username
+	session.Extra["name"] = sess.Username // Using Username as Name if not available
+	session.Extra["wso2_session_id"] = Cookie.Value
+	session.Extra["id_token"] = sess.IDToken
+	session.Extra["access_token"] = sess.AccessToken
+
+	// Add all relevant data to headers
+	session.SetHeader("wso2_session_id", Cookie.Value)
+	session.SetHeader("sub", sess.Sub)
+	session.SetHeader("username", sess.Username)
 	return nil
 }
 

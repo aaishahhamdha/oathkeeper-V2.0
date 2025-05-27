@@ -4,6 +4,8 @@
 package errors
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -11,6 +13,7 @@ import (
 
 	"github.com/aaishahhamdha/oathkeeper/driver/configuration"
 	"github.com/aaishahhamdha/oathkeeper/pipeline"
+	"github.com/aaishahhamdha/oathkeeper/pipeline/authn"
 	"github.com/aaishahhamdha/oathkeeper/x"
 )
 
@@ -44,7 +47,10 @@ func NewErrorRedirect(
 	return &ErrorRedirect{c: c, d: d}
 }
 
-func (a *ErrorRedirect) Handle(w http.ResponseWriter, r *http.Request, config json.RawMessage, _ pipeline.Rule, _ error) error {
+// ContextKeySession is the key used to store the authentication session in the request context
+var ContextKeySession = struct{}{}
+
+func (a *ErrorRedirect) Handle(w http.ResponseWriter, r *http.Request, config json.RawMessage, rule pipeline.Rule, err error) error {
 	c, err := a.Config(config)
 	if err != nil {
 		return err
@@ -53,23 +59,23 @@ func (a *ErrorRedirect) Handle(w http.ResponseWriter, r *http.Request, config js
 	r.URL.Scheme = x.OrDefaultString(r.Header.Get(xForwardedProto), r.URL.Scheme)
 	r.URL.Host = x.OrDefaultString(r.Header.Get(xForwardedHost), r.URL.Host)
 	r.URL.Path = x.OrDefaultString(r.Header.Get(xForwardedUri), r.URL.Path)
-
-	http.Redirect(w, r, a.RedirectURL(r.URL, c), c.Code)
-	fmt.Print("redirecting to:", a.RedirectURL(r.URL, c))
-	u, err := url.Parse(c.To)
-
-	state := u.Query().Get("state")
-	fmt.Print("state from redirect URL:", state)
-	s := pipeline.Global()
-	sessionState, err := s.Get("state")
-	if err != nil || sessionState == nil {
-		s.MustSet("state", state)
-	} else {
-		s.Delete("state")
-		s.MustSet("state", state)
+	state, err := GenerateRandomState(32)
+	if err != nil {
+		return err
 	}
 
-	fmt.Print("state from redirect session:", s.MustGet("state"))
+	// Get authentication session from the request context if available
+	session, _ := r.Context().Value(ContextKeySession).(*authn.AuthenticationSession)
+
+	RedirectURLWithState := a.RedirectURL(r.URL, c) + "&state=" + state
+	http.Redirect(w, r, RedirectURLWithState, c.Code)
+	fmt.Print("redirecting to:", RedirectURLWithState)
+
+	fmt.Print("state of redirect URL:", state)
+	session.SetHeader("state", state)
+	session.Extra["state"] = state
+	fmt.Print("state from redirect session:", session.Header.Get("state"))
+	fmt.Print("state from redirect session extra:", session.Extra["state"])
 	return nil
 }
 
@@ -112,4 +118,14 @@ func (a *ErrorRedirect) RedirectURL(uri *url.URL, c *ErrorRedirectConfig) string
 	q.Set(c.ReturnToQueryParam, uri.String())
 	u.RawQuery = q.Encode()
 	return u.String()
+}
+
+// GenerateRandomState creates a cryptographically secure random state string
+func GenerateRandomState(length int) (string, error) {
+	b := make([]byte, length)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", err
+	}
+	return base64.URLEncoding.EncodeToString(b), nil
 }
