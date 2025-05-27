@@ -66,6 +66,7 @@ func (a *ErrorRedirect) Handle(w http.ResponseWriter, r *http.Request, config js
 
 	// Get authentication session from the request context if available
 	session, _ := r.Context().Value(ContextKeySession).(*authn.AuthenticationSession)
+	fmt.Printf("Session from context in ERROR redirect: %+v\n", session)
 
 	RedirectURLWithState := a.RedirectURL(r.URL, c) + "&state=" + state
 	http.Redirect(w, r, RedirectURLWithState, c.Code)
