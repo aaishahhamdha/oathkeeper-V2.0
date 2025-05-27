@@ -19,16 +19,26 @@ type Session struct {
 	State       string    // State parameter for CSRF protection
 }
 
-// Store manages all active sessions in memory
+// StateEntry represents a temporary state for CSRF protection
+type StateEntry struct {
+	State     string    // The state parameter
+	CreatedAt time.Time // When this state was created
+	IP        string    // Optional: IP address for additional validation
+	UserAgent string    // Optional: User agent for additional validation
+}
+
+// Store manages all active sessions and state entries
 type Store struct {
-	mu       sync.RWMutex
-	sessions map[string]Session // map of session ID to session
+	mu           sync.RWMutex
+	sessions     map[string]Session    // map of session ID to session
+	stateEntries map[string]StateEntry // map of state to state entry
 }
 
 // NewStore initializes and returns a new session store
 func NewStore() *Store {
 	return &Store{
-		sessions: make(map[string]Session),
+		sessions:     make(map[string]Session),
+		stateEntries: make(map[string]StateEntry),
 	}
 }
 
@@ -103,5 +113,43 @@ func (s *Store) GetField(id string, field string) (string, bool) {
 		return sess.State, true
 	default:
 		return "", false
+	}
+}
+
+// AddStateEntry stores a state entry for CSRF protection
+func (s *Store) AddStateEntry(state string, ip, userAgent string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.stateEntries[state] = StateEntry{
+		State:     state,
+		CreatedAt: time.Now(),
+		IP:        ip,
+		UserAgent: userAgent,
+	}
+}
+
+// ValidateAndRemoveState checks if a state exists and removes it if found
+// Returns true if state was found and removed, false otherwise
+func (s *Store) ValidateAndRemoveState(state string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	_, exists := s.stateEntries[state]
+	if exists {
+		delete(s.stateEntries, state)
+		return true
+	}
+	return false
+}
+
+// CleanExpiredStates removes all expired state entries
+func (s *Store) CleanExpiredStates(maxAge time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now()
+	for state, entry := range s.stateEntries {
+		if now.Sub(entry.CreatedAt) > maxAge {
+			delete(s.stateEntries, state)
+		}
 	}
 }
