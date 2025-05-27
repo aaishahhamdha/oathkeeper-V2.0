@@ -207,7 +207,12 @@ func (a *AuthenticatorCallback) Authenticate(r *http.Request, session *Authentic
 	}
 	authState := session.Header.Get("state")
 	if authState == "" {
-		fmt.Println("State not found in auth session")
+		fmt.Println("State not found in auth session header")
+		authState = session.Extra["state"].(string)
+
+		if authState == "" {
+			fmt.Println("State not found in auth session extra")
+		}
 		return errors.New("no state found in session - possible session expiry")
 	} else {
 		fmt.Println("State from session:", authState)
