@@ -13,7 +13,6 @@ import (
 
 	"github.com/aaishahhamdha/oathkeeper/driver/configuration"
 	"github.com/aaishahhamdha/oathkeeper/pipeline"
-	"github.com/aaishahhamdha/oathkeeper/pipeline/authn"
 	"github.com/aaishahhamdha/oathkeeper/x"
 )
 
@@ -63,20 +62,11 @@ func (a *ErrorRedirect) Handle(w http.ResponseWriter, r *http.Request, config js
 	if err != nil {
 		return err
 	}
-
-	// Get authentication session from the request context if available
-	session, _ := r.Context().Value(ContextKeySession).(*authn.AuthenticationSession)
-	fmt.Printf("Session from context in ERROR redirect: %+v\n", session)
-
 	RedirectURLWithState := a.RedirectURL(r.URL, c) + "&state=" + state
 	http.Redirect(w, r, RedirectURLWithState, c.Code)
 	fmt.Print("redirecting to:", RedirectURLWithState)
 
 	fmt.Print("state of redirect URL:", state)
-	session.SetHeader("state", state)
-	session.Extra["state"] = state
-	fmt.Print("state from redirect session:", session.Header.Get("state"))
-	fmt.Print("state from redirect session extra:", session.Extra["state"])
 	return nil
 }
 

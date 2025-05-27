@@ -205,29 +205,29 @@ func (a *AuthenticatorCallback) Authenticate(r *http.Request, session *Authentic
 	} else {
 		fmt.Println("State not found in URL")
 	}
-	authState := session.Header.Get("state")
-	if authState == "" {
-		fmt.Println("State not found in auth session header")
-		authState = session.Extra["state"].(string)
+	// authState := session.Header.Get("state")
+	// if authState == "" {
+	// 	fmt.Println("State not found in auth session header")
+	// 	authState = session.Extra["state"].(string)
 
-		if authState == "" {
-			fmt.Println("State not found in auth session extra")
-		}
-		return errors.New("no state found in session - possible session expiry")
-	} else {
-		fmt.Println("State from session:", authState)
-	}
+	// 	if authState == "" {
+	// 		fmt.Println("State not found in auth session extra")
+	// 	}
+	// 	return errors.New("no state found in session - possible session expiry")
+	// } else {
+	// 	fmt.Println("State from session:", authState)
+	// }
 
-	// Compare the returned state with the stored state
-	if authState != state {
-		fmt.Println("Invalid state: possible CSRF attack")
-		return errors.New("invalid state: possible CSRF attack")
-	}
+	// // Compare the returned state with the stored state
+	// if authState != state {
+	// 	fmt.Println("Invalid state: possible CSRF attack")
+	// 	return errors.New("invalid state: possible CSRF attack")
+	// }
 
-	// Clear the state from the session after validation
-	session.Header.Del("state")
+	// // Clear the state from the session after validation
+	// session.Header.Del("state")
 
-	fmt.Println("State is valid. Authorization code:", authCode)
+	// fmt.Println("State is valid. Authorization code:", authCode)
 
 	data := url.Values{}
 	data.Set("grant_type", "authorization_code")
@@ -367,7 +367,7 @@ func (a *AuthenticatorCallback) Authenticate(r *http.Request, session *Authentic
 		Sub:         userInfoResponse.Sub,
 		IssuedAt:    time.Now(),
 		ExpiresAt:   time.Now().Add(1 * time.Hour),
-		State:       authState,
+		State:       state,
 		AccessToken: tokenResponse.AccessToken,
 		IDToken:     tokenResponse.IDToken,
 	}
