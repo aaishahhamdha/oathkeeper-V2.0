@@ -150,3 +150,18 @@ func (s *Store) CleanExpiredStates(maxAge time.Duration) {
 		}
 	}
 }
+
+// GetSessionCount returns the total number of active sessions
+func (s *Store) GetSessionCount() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.sessions)
+}
+
+// SessionExists checks if a session exists without retrieving it
+func (s *Store) SessionExists(id string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	_, exists := s.sessions[id]
+	return exists
+}

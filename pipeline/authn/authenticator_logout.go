@@ -65,8 +65,22 @@ func (a *AuthenticatorLogout) Authenticate(r *http.Request, session *Authenticat
 	// Get session ID from cookie
 	sessionCookie, err := r.Cookie("wso2_session_id")
 	if err == nil && sessionCookie != nil {
+		a.logger.Infof("Logout: Found session cookie with ID: %s", sessionCookie.Value)
+
+		// Check if session exists before deletion
+		if _, exists := session_store.GlobalStore.GetSession(sessionCookie.Value); exists {
+			a.logger.Infof("Logout: Session found in store, proceeding with deletion")
+		} else {
+			a.logger.Warnf("Logout: Session %s not found in store", sessionCookie.Value)
+		}
+
 		// Remove session from session store
 		session_store.GlobalStore.DeleteSession(sessionCookie.Value)
+		a.logger.Infof("Logout: Successfully deleted session %s from store", sessionCookie.Value)
+		// Verify session was deleted
+		deletedSession, exists := session_store.GlobalStore.GetSession(sessionCookie.Value)
+		fmt.Printf("Logout verification: Session exists after deletion: %v, Session data: %+v\n", exists, deletedSession)
+		session_store.GlobalStore.CleanExpired()
 
 		// // Clear the cookie by setting an expired one
 		// http.SetCookie(session.Header, &http.Cookie{
@@ -78,12 +92,19 @@ func (a *AuthenticatorLogout) Authenticate(r *http.Request, session *Authenticat
 		// 	Secure:   true,
 		// 	SameSite: http.SameSiteStrictMode,
 		// })
+	} else {
+		a.logger.Warnf("Logout: No session cookie found in request: %v", err)
 	}
 
 	// Get ID token for OIDC logout
 	var idTokenHint string
 	if sessionCookie != nil {
 		idTokenHint, _ = session_store.GlobalStore.GetField(sessionCookie.Value, "id_token")
+		if idTokenHint != "" {
+			a.logger.Infof("Logout: Retrieved ID token hint for OIDC logout")
+		} else {
+			a.logger.Warnf("Logout: No ID token found for session %s", sessionCookie.Value)
+		}
 	}
 
 	state, err := GenerateRandomString(32)
@@ -96,24 +117,29 @@ func (a *AuthenticatorLogout) Authenticate(r *http.Request, session *Authenticat
 		logoutURL += fmt.Sprintf("&id_token_hint=%s", idTokenHint)
 	}
 
-	a.logger.Debug("Logout URL:", logoutURL)
+	a.logger.Infof("Logout: Calling OIDC logout URL: %s", logoutURL)
 	req, err := http.NewRequest("GET", logoutURL, nil)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
+		a.logger.Errorf("Logout: Failed to call OIDC logout endpoint: %v", err)
 		return errors.WithStack(err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		a.logger.Errorf("Logout: OIDC logout failed with status code: %d", resp.StatusCode)
 		return errors.Errorf("failed to logout, status code: %d", resp.StatusCode)
 	}
+	a.logger.Infof("Logout: OIDC logout successful with status: %d", resp.StatusCode)
 
 	// Clean up session data
+	a.logger.Infof("Logout: Cleaning up session headers")
 	session.Header.Del("access_token")
 	session.Header.Del("id_token")
 	session.Header.Del("wso2_session_id")
+	a.logger.Infof("Logout: Successfully completed logout process")
 
 	return nil
 }
