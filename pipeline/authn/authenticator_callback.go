@@ -205,6 +205,21 @@ func (a *AuthenticatorCallback) Authenticate(r *http.Request, session *Authentic
 	} else {
 		fmt.Println("State not found in URL")
 	}
+
+	if authCode == "" {
+		return errors.New("authorization code not found in callback URL")
+	}
+
+	if state == "" {
+		return errors.New("state parameter missing from callback request")
+	}
+
+	// Validate the state parameter (one-time use)
+	if !session_store.GlobalStore.ValidateAndRemoveState(state) {
+		return errors.New("invalid state: possible CSRF attack or session expiry")
+	}
+
+	fmt.Println("State validated successfully. Proceeding with authorization code:", authCode)
 	// authState := session.Header.Get("state")
 	// if authState == "" {
 	// 	fmt.Println("State not found in auth session header")

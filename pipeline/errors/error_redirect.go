@@ -13,6 +13,7 @@ import (
 
 	"github.com/aaishahhamdha/oathkeeper/driver/configuration"
 	"github.com/aaishahhamdha/oathkeeper/pipeline"
+	"github.com/aaishahhamdha/oathkeeper/pipeline/session_store"
 	"github.com/aaishahhamdha/oathkeeper/x"
 )
 
@@ -58,15 +59,23 @@ func (a *ErrorRedirect) Handle(w http.ResponseWriter, r *http.Request, config js
 	r.URL.Scheme = x.OrDefaultString(r.Header.Get(xForwardedProto), r.URL.Scheme)
 	r.URL.Host = x.OrDefaultString(r.Header.Get(xForwardedHost), r.URL.Host)
 	r.URL.Path = x.OrDefaultString(r.Header.Get(xForwardedUri), r.URL.Path)
+
+	// Generate a random state for CSRF protection
 	state, err := GenerateRandomState(32)
 	if err != nil {
 		return err
 	}
-	RedirectURLWithState := a.RedirectURL(r.URL, c) + "&state=" + state
-	http.Redirect(w, r, RedirectURLWithState, c.Code)
-	fmt.Print("redirecting to:", RedirectURLWithState)
 
-	fmt.Print("state of redirect URL:", state)
+	// Store the state in the session store with client info
+	session_store.GlobalStore.AddStateEntry(state, r.RemoteAddr, r.UserAgent())
+
+	// Add state to the redirect URL
+	redirectURL := a.RedirectURL(r.URL, c) + "&state=" + state
+
+	// Perform the redirect
+	http.Redirect(w, r, redirectURL, c.Code)
+	fmt.Printf("Redirecting to: %s with state: %s\n", redirectURL, state)
+
 	return nil
 }
 
