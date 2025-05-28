@@ -10,6 +10,7 @@ import (
 
 	"github.com/aaishahhamdha/oathkeeper/driver/configuration"
 	"github.com/aaishahhamdha/oathkeeper/pipeline"
+	"github.com/aaishahhamdha/oathkeeper/pipeline/session_store"
 	"github.com/dgraph-io/ristretto"
 	"github.com/ory/x/httpx"
 	"github.com/ory/x/logrusx"
@@ -60,15 +61,42 @@ func (a *AuthenticatorLogout) Authenticate(r *http.Request, session *Authenticat
 	if cf.PostLogoutRedirectUrl == "" {
 		return errors.New("post_logout_redirect_url is required")
 	}
-	s := pipeline.Global()
-	idTokenHint, err := s.Get("id_token")
+
+	// Get session ID from cookie
+	sessionCookie, err := r.Cookie("wso2_session_id")
+	if err == nil && sessionCookie != nil {
+		// Remove session from session store
+		session_store.GlobalStore.DeleteSession(sessionCookie.Value)
+
+		// // Clear the cookie by setting an expired one
+		// http.SetCookie(session.Header, &http.Cookie{
+		// 	Name:     "wso2_session_id",
+		// 	Value:    "",
+		// 	Path:     "/",
+		// 	MaxAge:   -1,
+		// 	HttpOnly: true,
+		// 	Secure:   true,
+		// 	SameSite: http.SameSiteStrictMode,
+		// })
+	}
+
+	// Get ID token for OIDC logout
+	var idTokenHint string
+	if sessionCookie != nil {
+		idTokenHint, _ = session_store.GlobalStore.GetField(sessionCookie.Value, "id_token")
+	}
+
 	state, err := GenerateRandomString(32)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	logoutURL := fmt.Sprintf("%s?post_logout_redirect_uri=%s&id_token_hint=%s&state=%s", cf.OidcLogoutUrl, cf.PostLogoutRedirectUrl, state, idTokenHint)
-	fmt.Println("Logout URL:", logoutURL)
+	logoutURL := fmt.Sprintf("%s?post_logout_redirect_uri=%s&state=%s", cf.OidcLogoutUrl, cf.PostLogoutRedirectUrl, state)
+	if idTokenHint != "" {
+		logoutURL += fmt.Sprintf("&id_token_hint=%s", idTokenHint)
+	}
+
+	a.logger.Debug("Logout URL:", logoutURL)
 	req, err := http.NewRequest("GET", logoutURL, nil)
 	if err != nil {
 		return errors.WithStack(err)
@@ -81,12 +109,13 @@ func (a *AuthenticatorLogout) Authenticate(r *http.Request, session *Authenticat
 	if resp.StatusCode != http.StatusOK {
 		return errors.Errorf("failed to logout, status code: %d", resp.StatusCode)
 	}
-	s.Delete("access_token")
-	s.Delete("id_token")
+
+	// Clean up session data
 	session.Header.Del("access_token")
 	session.Header.Del("id_token")
-	return nil
+	session.Header.Del("wso2_session_id")
 
+	return nil
 }
 
 func NewAuthenticatorLogout(c configuration.Provider, logger *logrusx.Logger, provider trace.TracerProvider) *AuthenticatorLogout {

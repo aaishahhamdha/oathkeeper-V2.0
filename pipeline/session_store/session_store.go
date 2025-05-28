@@ -9,22 +9,21 @@ import (
 
 // Session represents the session information for a user
 type Session struct {
-	ID          string    // Unique session ID
-	Username    string    // Username of the user
-	Sub         string    // Subject (usually user ID from IdP)
-	ExpiresAt   time.Time // Expiration time
-	IssuedAt    time.Time // Issued time
-	AccessToken string    // OAuth2 Access Token
-	IDToken     string    // OIDC ID Token
-	State       string    // State parameter for CSRF protection
+	ID          string
+	Username    string
+	Sub         string
+	ExpiresAt   time.Time
+	IssuedAt    time.Time
+	AccessToken string
+	IDToken     string
 }
 
 // StateEntry represents a temporary state for CSRF protection
 type StateEntry struct {
-	State     string    // The state parameter
-	CreatedAt time.Time // When this state was created
-	IP        string    // Optional: IP address for additional validation
-	UserAgent string    // Optional: User agent for additional validation
+	State     string
+	CreatedAt time.Time
+	IP        string
+	UserAgent string
 }
 
 // Store manages all active sessions and state entries
@@ -109,8 +108,6 @@ func (s *Store) GetField(id string, field string) (string, bool) {
 		return sess.AccessToken, true
 	case "id_token":
 		return sess.IDToken, true
-	case "state":
-		return sess.State, true
 	default:
 		return "", false
 	}
