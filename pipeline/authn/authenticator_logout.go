@@ -33,6 +33,12 @@ type AuthenticatorLogoutRetryConfiguration struct {
 	MaxWait string `json:"give_up_after"`
 }
 
+type logoutCacheConfig struct {
+	Enabled bool   `json:"enabled"`
+	TTL     string `json:"ttl"`
+	MaxCost int    `json:"max_cost"`
+}
+
 type AuthenticatorLogout struct {
 	c         configuration.Provider
 	clientMap map[string]*http.Client
@@ -65,47 +71,35 @@ func (a *AuthenticatorLogout) Authenticate(r *http.Request, session *Authenticat
 
 	// Get session ID from cookie
 	sessionCookie, err := r.Cookie("wso2_session_id")
+	var idTokenHint string
 	if err == nil && sessionCookie != nil {
 		a.logger.Infof("Logout: Found session cookie with ID: %s", sessionCookie.Value)
 
 		// Check if session exists before deletion
 		if _, exists := session_store.GlobalStore.GetSession(sessionCookie.Value); exists {
-			a.logger.Infof("Logout: Session found in store, proceeding with deletion")
+			a.logger.Infof("Logout: Session found in store, proceeding with logout")
 		} else {
 			a.logger.Warnf("Logout: Session %s not found in store", sessionCookie.Value)
 		}
 
-		// Remove session from session store
-		session_store.GlobalStore.DeleteSession(sessionCookie.Value)
-		a.logger.Infof("Logout: Successfully deleted session %s from store", sessionCookie.Value)
-		// Verify session was deleted
-		deletedSession, exists := session_store.GlobalStore.GetSession(sessionCookie.Value)
-		fmt.Printf("Logout verification: Session exists after deletion: %v, Session data: %+v\n", exists, deletedSession)
-		session_store.GlobalStore.CleanExpired()
-
-		// // Clear the cookie by setting an expired one
-		// http.SetCookie(session.Header, &http.Cookie{
-		// 	Name:     "wso2_session_id",
-		// 	Value:    "",
-		// 	Path:     "/",
-		// 	MaxAge:   -1,
-		// 	HttpOnly: true,
-		// 	Secure:   true,
-		// 	SameSite: http.SameSiteStrictMode,
-		// })
-	} else {
-		a.logger.Warnf("Logout: No session cookie found in request: %v", err)
-	}
-
-	// Get ID token for OIDC logout
-	var idTokenHint string
-	if sessionCookie != nil {
+		// Get ID token for OIDC logout BEFORE deleting the session
 		idTokenHint, _ = session_store.GlobalStore.GetField(sessionCookie.Value, "id_token")
 		if idTokenHint != "" {
 			a.logger.Infof("Logout: Retrieved ID token hint for OIDC logout")
 		} else {
 			a.logger.Warnf("Logout: No ID token found for session %s", sessionCookie.Value)
 		}
+
+		// Now remove session from session store
+		session_store.GlobalStore.DeleteSession(sessionCookie.Value)
+		a.logger.Infof("Logout: Successfully deleted session %s from store", sessionCookie.Value)
+
+		// Verify session was deleted
+		deletedSession, exists := session_store.GlobalStore.GetSession(sessionCookie.Value)
+		fmt.Printf("Logout verification: Session exists after deletion: %v, Session data: %+v\n", exists, deletedSession)
+		session_store.GlobalStore.CleanExpired()
+	} else {
+		a.logger.Warnf("Logout: No session cookie found in request: %v", err)
 	}
 
 	state, err := GenerateRandomString(32)
@@ -122,9 +116,7 @@ func (a *AuthenticatorLogout) Authenticate(r *http.Request, session *Authenticat
 	params := url.Values{}
 	params.Set("post_logout_redirect_uri", cf.PostLogoutRedirectUrl)
 	params.Set("state", state)
-	if idTokenHint != "" {
-		params.Set("id_token_hint", idTokenHint)
-	}
+	params.Set("id_token_hint", idTokenHint)
 
 	logoutURL.RawQuery = params.Encode()
 	logoutURLString := logoutURL.String()
