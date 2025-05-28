@@ -208,6 +208,13 @@
       "additionalProperties": false,
       "required": ["to"],
       "properties": {
+        "type": {
+          "title": "Redirect Type",
+          "description": "Defines the type of redirect: 'auth' for authentication with CSRF protection, 'logout' for logout flows, or 'none' for simple redirects.",
+          "type": "string",
+          "enum": ["auth", "logout", "none"],
+          "default": "none"
+        },
         "to": {
           "title": "Redirect to",
           "description": "Set the redirect target. Can either be a http/https URL, or a relative URL.",
@@ -235,13 +242,6 @@
         },
         "when": {
           "$ref": "#/definitions/configErrorsWhen"
-        },
-        "type": {
-          "title": "Redirect Type",
-          "description": "Defines the type of redirect: 'auth' for authentication with CSRF protection, 'logout' for logout flows, or 'none' for simple redirects.",
-          "type": "string",
-          "enum": ["auth", "logout", "none"],
-          "default": "none"
         }
       }
     },
