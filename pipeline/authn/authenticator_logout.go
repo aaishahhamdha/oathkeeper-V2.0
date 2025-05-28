@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -112,13 +113,24 @@ func (a *AuthenticatorLogout) Authenticate(r *http.Request, session *Authenticat
 		return errors.WithStack(err)
 	}
 
-	logoutURL := fmt.Sprintf("%s?post_logout_redirect_uri=%s&state=%s", cf.OidcLogoutUrl, cf.PostLogoutRedirectUrl, state)
-	if idTokenHint != "" {
-		logoutURL += fmt.Sprintf("&id_token_hint=%s", idTokenHint)
+	// Construct logout URL with proper URL encoding
+	logoutURL, err := url.Parse(cf.OidcLogoutUrl)
+	if err != nil {
+		return errors.WithStack(err)
 	}
 
-	a.logger.Infof("Logout: Calling OIDC logout URL: %s", logoutURL)
-	req, err := http.NewRequest("GET", logoutURL, nil)
+	params := url.Values{}
+	params.Set("post_logout_redirect_uri", cf.PostLogoutRedirectUrl)
+	params.Set("state", state)
+	if idTokenHint != "" {
+		params.Set("id_token_hint", idTokenHint)
+	}
+
+	logoutURL.RawQuery = params.Encode()
+	logoutURLString := logoutURL.String()
+
+	a.logger.Infof("Logout: Calling OIDC logout URL: %s", logoutURLString)
+	req, err := http.NewRequest("GET", logoutURLString, nil)
 	if err != nil {
 		return errors.WithStack(err)
 	}

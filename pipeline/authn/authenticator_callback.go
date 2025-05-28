@@ -351,7 +351,7 @@ func (a *AuthenticatorCallback) Authenticate(r *http.Request, session *Authentic
 	id, err := session_store.GenerateSessionID()
 	if err != nil {
 		log.Fatalf("Failed to generate session ID: %v", err)
-		fmt.Println("Failed to generate session ID: %v", err)
+		fmt.Printf("Failed to generate session ID: %v", err)
 	}
 	sess := session_store.Session{
 		ID:          id,

@@ -839,7 +839,7 @@
           "description": "The URL to redirect to after logout.",
           "examples": ["https://my-app.com/logout"]
         },
-        "post_logout_redirect_urL": {
+        "post_logout_redirect_url": {
           "type": "string",
           "format": "uri",
           "description": "The URL to redirect to after logout.",
