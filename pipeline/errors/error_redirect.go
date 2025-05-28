@@ -30,6 +30,7 @@ type (
 		To                 string `json:"to"`
 		Code               int    `json:"code"`
 		ReturnToQueryParam string `json:"return_to_query_param"`
+		Type               string `json:"type"`
 	}
 	ErrorRedirect struct {
 		c configuration.Provider
@@ -66,15 +67,27 @@ func (a *ErrorRedirect) Handle(w http.ResponseWriter, r *http.Request, config js
 		return err
 	}
 
-	// Store the state in the session store with client info
-	session_store.GlobalStore.AddStateEntry(state, r.RemoteAddr, r.UserAgent())
+	if c.Type == "auth" {
+		// Store the state in the session store with client info
+		session_store.GlobalStore.AddStateEntry(state, r.RemoteAddr, r.UserAgent())
 
-	// Add state to the redirect URL
-	redirectURL := a.RedirectURL(r.URL, c) + "&state=" + state
+		// Add state to the redirect URL
+		redirectURL := a.RedirectURL(r.URL, c) + "&state=" + state
 
-	// Perform the redirect
-	http.Redirect(w, r, redirectURL, c.Code)
-	fmt.Printf("Redirecting to: %s with state: %s\n", redirectURL, state)
+		// Perform the redirect
+		http.Redirect(w, r, redirectURL, c.Code)
+		fmt.Printf("Redirecting to: %s with state: %s\n", redirectURL, state)
+	} else if c.Type == "logout" {
+		// Perform the redirect
+		redirectURL := a.RedirectURL(r.URL, c)
+		http.Redirect(w, r, redirectURL, c.Code)
+		fmt.Printf("Redirecting to: %s\n", redirectURL)
+	} else {
+		// Type is "none" or any other value - just do a simple redirect
+		redirectURL := a.RedirectURL(r.URL, c)
+		http.Redirect(w, r, redirectURL, c.Code)
+		fmt.Printf("Redirecting to: %s\n", redirectURL)
+	}
 
 	return nil
 }

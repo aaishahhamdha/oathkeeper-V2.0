@@ -235,6 +235,13 @@
         },
         "when": {
           "$ref": "#/definitions/configErrorsWhen"
+        },
+        "type": {
+          "title": "Redirect Type",
+          "description": "Defines the type of redirect: 'auth' for authentication with CSRF protection, 'logout' for logout flows, or 'none' for simple redirects.",
+          "type": "string",
+          "enum": ["auth", "logout", "none"],
+          "default": "none"
         }
       }
     },
