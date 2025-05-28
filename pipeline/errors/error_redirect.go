@@ -77,6 +77,7 @@ func (a *ErrorRedirect) Handle(w http.ResponseWriter, r *http.Request, config js
 		fmt.Printf("Redirecting to: %s with state: %s\n", redirectURL, state)
 	} else if c.Type == "logout" {
 		fmt.Println("Redirect type: logout")
+
 		// Perform the redirect
 		redirectURL := a.RedirectURL(r.URL, c)
 		http.Redirect(w, r, redirectURL, c.Code)

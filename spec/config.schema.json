@@ -215,6 +215,18 @@
           "enum": ["auth", "logout", "none"],
           "default": "none"
         },
+        "oidc_logout_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "The URL to redirect to after logout.",
+          "examples": ["https://my-app.com/logout"]
+        },
+        "post_logout_redirect_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "The URL to redirect to after logout.",
+          "examples": ["https://my-app.com/after-logout"]
+        },
         "to": {
           "title": "Redirect to",
           "description": "Set the redirect target. Can either be a http/https URL, or a relative URL.",
