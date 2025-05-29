@@ -5,17 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"sync"
 	"time"
 
 	"github.com/aaishahhamdha/oathkeeper/driver/configuration"
+	"github.com/aaishahhamdha/oathkeeper/helper"
 	"github.com/aaishahhamdha/oathkeeper/pipeline"
-	"github.com/aaishahhamdha/oathkeeper/pipeline/session_store"
 	"github.com/dgraph-io/ristretto"
 	"github.com/ory/x/httpx"
 	"github.com/ory/x/logrusx"
-	"github.com/ory/x/otelx"
 	"github.com/pkg/errors"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
@@ -52,100 +50,8 @@ type AuthenticatorLogout struct {
 
 // Authenticate implements Authenticator.
 func (a *AuthenticatorLogout) Authenticate(r *http.Request, session *AuthenticationSession, config json.RawMessage, rule pipeline.Rule) (err error) {
-	tp := trace.SpanFromContext(r.Context()).TracerProvider()
-	ctx, span := tp.Tracer("oauthkeeper/pipeline/authn").Start(r.Context(), "pipeline.authn.AuthenticatorLogout.Authenticate")
-	defer otelx.End(span, &err)
-	r = r.WithContext(ctx)
-
-	cf, client, err := a.Config(config)
-	if err != nil {
-		return err
-	}
-
-	if cf.OidcLogoutUrl == "" {
-		return errors.New("oidc_logout_url is required")
-	}
-	if cf.PostLogoutRedirectUrl == "" {
-		return errors.New("post_logout_redirect_url is required")
-	}
-
-	// Get session ID from cookie
-	sessionCookie, err := r.Cookie("wso2_session_id")
-	var idTokenHint string
-	if err == nil && sessionCookie != nil {
-		a.logger.Infof("Logout: Found session cookie with ID: %s", sessionCookie.Value)
-
-		// Check if session exists before deletion
-		if _, exists := session_store.GlobalStore.GetSession(sessionCookie.Value); exists {
-			a.logger.Infof("Logout: Session found in store, proceeding with logout")
-		} else {
-			a.logger.Warnf("Logout: Session %s not found in store", sessionCookie.Value)
-		}
-
-		// Get ID token for OIDC logout BEFORE deleting the session
-		idTokenHint, _ = session_store.GlobalStore.GetField(sessionCookie.Value, "id_token")
-		if idTokenHint != "" {
-			a.logger.Infof("Logout: Retrieved ID token hint for OIDC logout")
-		} else {
-			a.logger.Warnf("Logout: No ID token found for session %s", sessionCookie.Value)
-		}
-
-		// Now remove session from session store
-		session_store.GlobalStore.DeleteSession(sessionCookie.Value)
-		a.logger.Infof("Logout: Successfully deleted session %s from store", sessionCookie.Value)
-
-		// Verify session was deleted
-		deletedSession, exists := session_store.GlobalStore.GetSession(sessionCookie.Value)
-		fmt.Printf("Logout verification: Session exists after deletion: %v, Session data: %+v\n", exists, deletedSession)
-		session_store.GlobalStore.CleanExpired()
-	} else {
-		a.logger.Warnf("Logout: No session cookie found in request: %v", err)
-	}
-
-	state, err := GenerateRandomString(32)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	// Construct logout URL with proper URL encoding
-	logoutURL, err := url.Parse(cf.OidcLogoutUrl)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	params := url.Values{}
-	params.Set("post_logout_redirect_uri", cf.PostLogoutRedirectUrl)
-	params.Set("state", state)
-	params.Set("id_token_hint", idTokenHint)
-
-	logoutURL.RawQuery = params.Encode()
-	logoutURLString := logoutURL.String()
-
-	a.logger.Infof("Logout: Calling OIDC logout URL: %s", logoutURLString)
-	req, err := http.NewRequest("GET", logoutURLString, nil)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		a.logger.Errorf("Logout: Failed to call OIDC logout endpoint: %v", err)
-		return errors.WithStack(err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		a.logger.Errorf("Logout: OIDC logout failed with status code: %d", resp.StatusCode)
-		return errors.Errorf("failed to logout, status code: %d", resp.StatusCode)
-	}
-	a.logger.Infof("Logout: OIDC logout successful with status: %d", resp.StatusCode)
-
-	// Clean up session data
-	a.logger.Infof("Logout: Cleaning up session headers")
-	session.Header.Del("access_token")
-	session.Header.Del("id_token")
-	session.Header.Del("wso2_session_id")
-	a.logger.Infof("Logout: Successfully completed logout process")
-
-	return nil
+	// Always fail with unauthorized error
+	return errors.WithStack(helper.ErrUnauthorized)
 }
 
 func NewAuthenticatorLogout(c configuration.Provider, logger *logrusx.Logger, provider trace.TracerProvider) *AuthenticatorLogout {
