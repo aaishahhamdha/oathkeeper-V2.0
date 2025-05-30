@@ -1415,7 +1415,7 @@
               "default": "24h"
             }
           },
-          "required": ["addr"]
+          "required": ["type"]
         }
       }
     }
