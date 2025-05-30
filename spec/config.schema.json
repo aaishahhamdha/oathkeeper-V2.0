@@ -1414,9 +1414,9 @@
               "pattern": "^[0-9]+(ns|us|ms|s|m|h)$",
               "default": "24h"
             }
-          },
-          "required": ["type"]
-        }
+          }
+        },
+        "required": ["type"]
       }
     }
   },
