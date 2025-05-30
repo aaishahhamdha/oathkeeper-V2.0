@@ -17,6 +17,7 @@ import (
 	"github.com/tidwall/gjson"
 
 	"github.com/aaishahhamdha/oathkeeper/x/header"
+	"github.com/ory/x/logrusx"
 	"github.com/ory/x/otelx"
 	"github.com/ory/x/stringsx"
 
@@ -81,11 +82,12 @@ type AuthenticatorCookieSession struct {
 	c      configuration.Provider
 	client *http.Client
 	tracer trace.Tracer
+	logger *logrusx.Logger
 }
 
 var _ AuthenticatorForwardConfig = new(AuthenticatorCookieSessionConfiguration)
 
-func NewAuthenticatorCookieSession(c configuration.Provider, provider trace.TracerProvider) *AuthenticatorCookieSession {
+func NewAuthenticatorCookieSession(c configuration.Provider, provider trace.TracerProvider, logger *logrusx.Logger) *AuthenticatorCookieSession {
 	return &AuthenticatorCookieSession{
 		c: c,
 		client: &http.Client{
@@ -95,6 +97,7 @@ func NewAuthenticatorCookieSession(c configuration.Provider, provider trace.Trac
 			),
 		},
 		tracer: provider.Tracer("oauthkeeper/pipeline/authn"),
+		logger: logger,
 	}
 }
 
@@ -135,22 +138,18 @@ func (a *AuthenticatorCookieSession) Authenticate(r *http.Request, session *Auth
 	ctx, span := a.tracer.Start(r.Context(), "pipeline.authn.AuthenticatorCookieSession.Authenticate")
 	defer otelx.End(span, &err)
 	r = r.WithContext(ctx)
-	fmt.Println("AuthenticatorCookieSession.Authenticate called")
 
 	cf, err := a.Config(config)
 	if err != nil {
-		fmt.Println("Error getting config: ", err)
-		return err
+		return errors.WithStack(err)
 	}
 
 	if !cookieSessionResponsible(r, cf.Only) {
-		fmt.Println("Authenticator not responsible for request")
 		return errors.WithStack(ErrAuthenticatorNotResponsible)
 	}
 
-	body, err := forwardRequestToSessionStore(a.client, r, cf)
+	body, err := a.forwardRequestToSessionStore(a.client, r, cf)
 	if err != nil {
-		fmt.Println("Error forwarding request: ", err)
 		return err
 	}
 
@@ -176,38 +175,30 @@ func (a *AuthenticatorCookieSession) Authenticate(r *http.Request, session *Auth
 }
 
 func cookieSessionResponsible(r *http.Request, only []string) bool {
-	// Debug: Log all cookies received
-	fmt.Printf("Received cookies: %v\n", r.Cookies())
-	fmt.Printf("Checking against only list: %v\n", only)
-
 	if len(only) == 0 {
 		return len(r.Cookies()) > 0
 	}
 
 	for _, cookieName := range only {
 		if _, err := r.Cookie(cookieName); err == nil {
-			fmt.Printf("Found matching cookie: %s\n", cookieName)
 			return true
 		}
 	}
 
-	fmt.Println("No matching cookies found")
 	return false
 }
 
-func forwardRequestToSessionStore(client *http.Client, r *http.Request, cf AuthenticatorForwardConfig) (json.RawMessage, error) {
+func (a *AuthenticatorCookieSession) forwardRequestToSessionStore(client *http.Client, r *http.Request, cf AuthenticatorForwardConfig) (json.RawMessage, error) {
 	req, err := PrepareRequest(r, cf)
 	if err != nil {
-		fmt.Println("Error preparing request: ", err)
+		a.logger.WithError(err).Error("Failed to prepare request to session store")
 		return nil, err
 	}
 
+	a.logger.WithField("url", req.URL.String()).Debug("Forwarding request to session store")
 	res, err := client.Do(req.WithContext(r.Context()))
-	fmt.Println("Request URL: ", req.URL.String())
-	fmt.Println("Response from check session: ", res)
-
 	if err != nil {
-		fmt.Println("Error: ", err)
+		a.logger.WithError(err).Error("Failed to forward request to session store")
 		return nil, helper.ErrForbidden.WithReason(err.Error()).WithTrace(err)
 	}
 
@@ -216,18 +207,19 @@ func forwardRequestToSessionStore(client *http.Client, r *http.Request, cf Authe
 	if res.StatusCode == http.StatusOK {
 		body, err := io.ReadAll(res.Body)
 		if err != nil {
-			fmt.Println("Error reading response body: ", err)
+			a.logger.WithError(err).Error("Failed to read response body from session store")
 			return json.RawMessage{}, errors.WithStack(herodot.ErrInternalServerError.WithReasonf("Unable to fetch cookie session context from remote: %+v", err))
 		}
+		a.logger.WithField("status_code", res.StatusCode).Debug("Successfully received response from session store")
 		return body, nil
 	} else {
+		a.logger.WithField("status_code", res.StatusCode).Debug("Received non-OK response from session store")
 		return json.RawMessage{}, errors.WithStack(helper.ErrUnauthorized)
 	}
 }
 
 func PrepareRequest(r *http.Request, cf AuthenticatorForwardConfig) (http.Request, error) {
 	reqURL, err := url.Parse(cf.GetCheckSessionURL())
-	fmt.Println("Parsed checksession URL: ", reqURL)
 	if err != nil {
 		return http.Request{}, errors.WithStack(herodot.ErrInternalServerError.WithReasonf("Unable to parse session check URL: %s", err))
 	}

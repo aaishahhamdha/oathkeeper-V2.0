@@ -21,6 +21,7 @@ import (
 	"github.com/ory/x/logrusx"
 	"github.com/ory/x/otelx"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -194,16 +195,13 @@ func (a *AuthenticatorCallback) Authenticate(r *http.Request, session *Authentic
 	requestURL := r.URL
 	authCode := requestURL.Query().Get("code")
 
-	if authCode != "" {
-		fmt.Println("Authorization code:", authCode)
-	} else {
-		fmt.Println("Authorization code not found in URL")
-	}
+	a.logger.WithField("auth_code_present", authCode != "").Debug("Processing authentication callback")
+
 	state := requestURL.Query().Get("state")
 	if state != "" {
-		fmt.Println("State:", state)
+		a.logger.Debug("State found in URL")
 	} else {
-		fmt.Println("State not found in URL")
+		a.logger.Debug("State not found in URL")
 	}
 
 	if authCode == "" {
@@ -219,7 +217,7 @@ func (a *AuthenticatorCallback) Authenticate(r *http.Request, session *Authentic
 		return errors.New("invalid state: possible CSRF attack or session expiry")
 	}
 
-	fmt.Println("State validated successfully. Proceeding with authorization code:", authCode)
+	a.logger.Debug("State validated successfully. Proceeding with authorization code")
 
 	data := url.Values{}
 	data.Set("grant_type", "authorization_code")
@@ -239,12 +237,13 @@ func (a *AuthenticatorCallback) Authenticate(r *http.Request, session *Authentic
 
 	// Now create the body
 	req, err := http.NewRequestWithContext(ctx, "POST", cf.TokenEndpoint, strings.NewReader(data.Encode()))
-	fmt.Println("Token request URL:", cf.TokenEndpoint)
-	fmt.Println("Client ID:", cf.ClientID)
-	fmt.Println("Client Secret:", cf.ClientSecret)
-	fmt.Println("Redirect URL:", cf.RedirectURL)
-	fmt.Println("Token Endpoint Auth Method:", cf.TokenEndpointAuthMethod)
-	fmt.Println("User Info Endpoint:", cf.UserInforEndpoint)
+	a.logger.WithFields(logrus.Fields{
+		"token_endpoint":      cf.TokenEndpoint,
+		"client_id":           cf.ClientID,
+		"redirect_url":        cf.RedirectURL,
+		"token_endpoint_auth": cf.TokenEndpointAuthMethod,
+		"user_info_endpoint":  cf.UserInforEndpoint,
+	}).Debug("Creating token request")
 
 	if err != nil {
 		return errors.Wrap(err, "failed to create token request")
@@ -278,8 +277,8 @@ func (a *AuthenticatorCallback) Authenticate(r *http.Request, session *Authentic
 	if err := json.NewDecoder(resp.Body).Decode(&tokenResponse); err != nil {
 		return errors.Wrap(err, "failed to decode token response")
 	}
-	fmt.Printf("Access token: %s \n", tokenResponse.AccessToken)
-	fmt.Printf("ID token: %s", tokenResponse.IDToken)
+	a.logger.WithField("access_token", tokenResponse.AccessToken).Debug("Received access token")
+	a.logger.WithField("id_token", tokenResponse.IDToken).Debug("Received ID token")
 
 	if session.Extra == nil {
 		session.Extra = make(map[string]interface{})
@@ -317,22 +316,12 @@ func (a *AuthenticatorCallback) Authenticate(r *http.Request, session *Authentic
 	}
 
 	// Log the user information for debugging
-	fmt.Printf("Sub: %s\n", userInfoResponse.Sub)
-	if userInfoResponse.Username != nil {
-		fmt.Printf("Username: %s\n", *userInfoResponse.Username)
-	} else {
-		fmt.Println("Username: <nil>")
-	}
-	if userInfoResponse.Email != nil {
-		fmt.Printf("Email: %s\n", *userInfoResponse.Email)
-	} else {
-		fmt.Println("Email: <nil>")
-	}
-	if userInfoResponse.Name != nil {
-		fmt.Printf("Name: %s\n", *userInfoResponse.Name)
-	} else {
-		fmt.Println("Name: <nil>")
-	}
+	a.logger.WithFields(logrus.Fields{
+		"sub":      userInfoResponse.Sub,
+		"username": userInfoResponse.Username,
+		"email":    userInfoResponse.Email,
+		"name":     userInfoResponse.Name,
+	}).Debug("Received user info")
 
 	// Store the user info in the session's Extra field
 	if session.Extra == nil {

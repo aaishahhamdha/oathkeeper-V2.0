@@ -95,19 +95,15 @@ func (a *AuthenticatorSessionJWT) Authenticate(r *http.Request, session *Authent
 
 	Cookie, err := r.Cookie("wso2_session_id")
 	if err != nil {
-		fmt.Println("error getting cookie:", err)
 		return errors.WithStack(ErrAuthenticatorNotResponsible)
 	}
 	token, err := a.BearerTokenFromSession(*Cookie)
 	if err != nil {
-		fmt.Println("error getting token from session:", err)
 		return errors.WithStack(ErrAuthenticatorNotResponsible)
 	}
 	if token == "" {
-		fmt.Println("token is empty")
 		return errors.WithStack(ErrAuthenticatorNotResponsible)
 	}
-	fmt.Println("token from jwt authenticator:", token)
 
 	// If the token is not a JWT, declare ourselves not responsible. This enables using fallback authenticators (i. e.
 	// bearer_token or oauth2_introspection) for different token types at the same location.

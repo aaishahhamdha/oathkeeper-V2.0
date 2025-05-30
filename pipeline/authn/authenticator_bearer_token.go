@@ -5,6 +5,7 @@ package authn
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 
@@ -17,6 +18,8 @@ import (
 	"github.com/aaishahhamdha/oathkeeper/helper"
 	"github.com/aaishahhamdha/oathkeeper/pipeline"
 	"github.com/aaishahhamdha/oathkeeper/x/header"
+	"github.com/ory/herodot"
+	"github.com/ory/x/logrusx"
 	"github.com/ory/x/otelx"
 	"github.com/ory/x/stringsx"
 )
@@ -76,11 +79,12 @@ type AuthenticatorBearerToken struct {
 	c      configuration.Provider
 	client *http.Client
 	tracer trace.Tracer
+	logger *logrusx.Logger
 }
 
 var _ AuthenticatorForwardConfig = new(AuthenticatorBearerTokenConfiguration)
 
-func NewAuthenticatorBearerToken(c configuration.Provider, provider trace.TracerProvider) *AuthenticatorBearerToken {
+func NewAuthenticatorBearerToken(c configuration.Provider, provider trace.TracerProvider, logger *logrusx.Logger) *AuthenticatorBearerToken {
 	return &AuthenticatorBearerToken{
 		c: c,
 		client: &http.Client{
@@ -90,6 +94,7 @@ func NewAuthenticatorBearerToken(c configuration.Provider, provider trace.Tracer
 			),
 		},
 		tracer: provider.Tracer("oauthkeeper/pipeline/authn"),
+		logger: logger,
 	}
 }
 
@@ -141,7 +146,7 @@ func (a *AuthenticatorBearerToken) Authenticate(r *http.Request, session *Authen
 		return errors.WithStack(ErrAuthenticatorNotResponsible)
 	}
 
-	body, err := forwardRequestToSessionStore(a.client, r, cf)
+	body, err := a.forwardRequestToSessionStore(a.client, r, cf)
 	if err != nil {
 		return err
 	}
@@ -165,4 +170,34 @@ func (a *AuthenticatorBearerToken) Authenticate(r *http.Request, session *Authen
 	session.Subject = subject
 	session.Extra = extra
 	return nil
+}
+
+func (a *AuthenticatorBearerToken) forwardRequestToSessionStore(client *http.Client, r *http.Request, cf AuthenticatorForwardConfig) (json.RawMessage, error) {
+	req, err := PrepareRequest(r, cf)
+	if err != nil {
+		a.logger.WithError(err).Error("Failed to prepare request to session store")
+		return nil, err
+	}
+
+	a.logger.WithField("url", req.URL.String()).Debug("Forwarding request to session store")
+	res, err := client.Do(req.WithContext(r.Context()))
+	if err != nil {
+		a.logger.WithError(err).Error("Failed to forward request to session store")
+		return nil, helper.ErrForbidden.WithReason(err.Error()).WithTrace(err)
+	}
+
+	defer res.Body.Close()
+
+	if res.StatusCode == http.StatusOK {
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			a.logger.WithError(err).Error("Failed to read response body from session store")
+			return json.RawMessage{}, errors.WithStack(herodot.ErrInternalServerError.WithReasonf("Unable to fetch cookie session context from remote: %+v", err))
+		}
+		a.logger.WithField("status_code", res.StatusCode).Debug("Successfully received response from session store")
+		return body, nil
+	} else {
+		a.logger.WithField("status_code", res.StatusCode).Debug("Received non-OK response from session store")
+		return json.RawMessage{}, errors.WithStack(helper.ErrUnauthorized)
+	}
 }
