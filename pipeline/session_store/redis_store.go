@@ -3,6 +3,7 @@ package session_store
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -27,22 +28,43 @@ func (r *RedisStore) CleanExpired() {
 
 // CleanExpiredStates implements SessionStorer.
 func (r *RedisStore) CleanExpiredStates(maxAge time.Duration) {
-	panic("unimplemented")
+	// Redis automatically removes expired keys, so we don't need to manually clean them
+	// This method is implemented to satisfy the SessionStorer interface
+	// No action needed as Redis handles expiration automatically
 }
 
 // GetSessionCount implements SessionStorer.
 func (r *RedisStore) GetSessionCount() int {
-	panic("unimplemented")
+	// Use KEYS command with the session prefix pattern to count sessions
+	keys, err := r.client.Keys(r.ctx, r.sessionPrefix+"*").Result()
+	if err != nil {
+		fmt.Printf("DEBUG: Error counting sessions: %v\n", err)
+		return 0
+	}
+	return len(keys)
 }
 
 // SessionExists implements SessionStorer.
 func (r *RedisStore) SessionExists(id string) bool {
-	panic("unimplemented")
+	exists, err := r.client.Exists(r.ctx, r.sessionPrefix+id).Result()
+	if err != nil {
+		fmt.Printf("DEBUG: Error checking if session exists: %v\n", err)
+		return false
+	}
+	return exists == 1
 }
 
 // ValidateAndRemoveState implements SessionStorer.
-func (r *RedisStore) ValidateAndRemoveState(state string) bool {
-	panic("unimplemented")
+func (r *RedisStore) ValidateAndRemoveState(ctx context.Context, state string) (string, error) {
+	key := r.statePrefix + state
+	data, err := r.client.GetDel(ctx, key).Result()
+	if err == redis.Nil {
+		return "", nil // Not found, not necessarily an error
+	}
+	if err != nil {
+		return "", fmt.Errorf("redis error: %w", err)
+	}
+	return data, nil
 }
 
 // RedisConfig holds configuration for Redis connection
@@ -104,20 +126,21 @@ func NewRedisStore(config RedisConfig) (*RedisStore, error) {
 	}, nil
 }
 
-// AddSession adds a new session to Redis
-func (r *RedisStore) AddSession(sess Session) {
+func (r *RedisStore) AddSession(ctx context.Context, sess Session) error {
 	data, err := json.Marshal(sess)
 	if err != nil {
-		return
+		return fmt.Errorf("marshal error: %w", err)
 	}
 
-	// Calculate TTL based on expiration time
 	ttl := time.Until(sess.ExpiresAt)
 	if ttl <= 0 {
-		return // Don't store expired sessions
+		return errors.New("session already expired")
 	}
 
-	r.client.Set(r.ctx, r.sessionPrefix+sess.ID, data, ttl)
+	if err := r.client.Set(ctx, r.sessionPrefix+sess.ID, data, ttl).Err(); err != nil {
+		return fmt.Errorf("redis set error: %w", err)
+	}
+	return nil
 }
 
 // GetSession retrieves a session by its ID

@@ -1,8 +1,10 @@
 package session_store
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 )
 
 // StoreType defines the type of session store to use
@@ -42,7 +44,7 @@ func InitializeSessionStore(config StoreConfig) (SessionStorer, error) {
 			return nil, err
 		}
 		fmt.Printf("DEBUG: Successfully initialized Redis session store\n")
-		return store, nil
+		return &redisStoreAdapter{store: store}, nil
 
 	default:
 		fmt.Printf("DEBUG: Unsupported session store type: %s\n", config.Type)
@@ -58,4 +60,52 @@ func InitializeFromJSON(configJSON []byte) (SessionStorer, error) {
 	}
 
 	return InitializeSessionStore(config)
+}
+
+// redisStoreAdapter adapts RedisStore to implement the SessionStorer interface
+type redisStoreAdapter struct {
+	store *RedisStore
+}
+
+// AddSession implements SessionStorer by forwarding to RedisStore with context
+func (a *redisStoreAdapter) AddSession(sess Session) {
+	_ = a.store.AddSession(context.Background(), sess)
+}
+
+// Other methods to implement the SessionStorer interface...
+func (a *redisStoreAdapter) GetSession(id string) (Session, bool) {
+	return a.store.GetSession(id)
+}
+
+func (a *redisStoreAdapter) DeleteSession(id string) {
+	a.store.DeleteSession(id)
+}
+
+func (a *redisStoreAdapter) CleanExpired() {
+	a.store.CleanExpired()
+}
+
+func (a *redisStoreAdapter) GetField(id string, field string) (string, bool) {
+	return a.store.GetField(id, field)
+}
+
+func (a *redisStoreAdapter) GetSessionCount() int {
+	return a.store.GetSessionCount()
+}
+
+func (a *redisStoreAdapter) SessionExists(id string) bool {
+	return a.store.SessionExists(id)
+}
+
+func (a *redisStoreAdapter) AddStateEntry(state string, ip, userAgent string) {
+	a.store.AddStateEntry(state, ip, userAgent)
+}
+
+func (a *redisStoreAdapter) ValidateAndRemoveState(state string) bool {
+	data, _ := a.store.ValidateAndRemoveState(context.Background(), state)
+	return data != ""
+}
+
+func (a *redisStoreAdapter) CleanExpiredStates(maxAge time.Duration) {
+	a.store.CleanExpiredStates(maxAge)
 }
