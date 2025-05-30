@@ -1415,8 +1415,7 @@
               "default": "24h"
             }
           }
-        },
-        "required": ["type"]
+        }
       }
     }
   },
