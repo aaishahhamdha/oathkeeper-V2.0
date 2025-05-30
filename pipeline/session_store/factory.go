@@ -26,19 +26,26 @@ type StoreConfig struct {
 
 // InitializeSessionStore creates and returns a SessionStorer based on the provided configuration
 func InitializeSessionStore(config StoreConfig) (SessionStorer, error) {
+	fmt.Printf("DEBUG: Initializing session store with type: %s\n", config.Type)
+
 	switch config.Type {
 	case InMemoryStore, "":
 		// Default to in-memory store if not specified
+		fmt.Printf("DEBUG: Using in-memory session store\n")
 		return NewStore(), nil
 
 	case RedisStoreType:
+		fmt.Printf("DEBUG: Attempting to initialize Redis session store with addr: %s\n", config.Redis.Addr)
 		store, err := NewRedisStore(config.Redis)
 		if err != nil {
+			fmt.Printf("DEBUG: Redis session store initialization failed: %v\n", err)
 			return nil, err
 		}
+		fmt.Printf("DEBUG: Successfully initialized Redis session store\n")
 		return store, nil
 
 	default:
+		fmt.Printf("DEBUG: Unsupported session store type: %s\n", config.Type)
 		return nil, fmt.Errorf("unsupported session store type: %s", config.Type)
 	}
 }

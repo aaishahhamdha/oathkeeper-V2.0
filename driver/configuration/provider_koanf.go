@@ -469,26 +469,36 @@ func (v *KoanfProvider) SessionStoreIsEnabled() bool {
 
 // SessionStoreConfig returns the session store configuration
 func (v *KoanfProvider) SessionStoreConfig() (*session_store.StoreConfig, error) {
+	fmt.Printf("DEBUG: Checking if session store is enabled: %v\n", v.SessionStoreIsEnabled())
+
 	if !v.SessionStoreIsEnabled() {
 		// Return default config if not explicitly configured
 		config := session_store.StoreConfig{
 			Type: session_store.InMemoryStore,
 		}
+		fmt.Printf("DEBUG: Using default in-memory session store configuration\n")
 		return &config, nil
 	}
 
 	var config session_store.StoreConfig
+	fmt.Printf("DEBUG: Attempting to unmarshal session store config from key: %s\n", SessionStoreKey)
 	if err := v.source.Unmarshal(SessionStoreKey, &config); err != nil {
+		fmt.Printf("DEBUG: Failed to unmarshal session store config: %v\n", err)
 		return nil, errors.WithStack(err)
 	}
 
+	fmt.Printf("DEBUG: Successfully loaded session store config with type: %s\n", config.Type)
+
 	// If Redis is configured, parse the TTL
 	if config.Type == session_store.RedisStoreType && config.Redis.TTL != "" {
+		fmt.Printf("DEBUG: Parsing Redis TTL: %s\n", config.Redis.TTL)
 		ttl, err := time.ParseDuration(config.Redis.TTL)
 		if err != nil {
+			fmt.Printf("DEBUG: Failed to parse Redis TTL: %v\n", err)
 			return nil, errors.WithStack(err)
 		}
 		config.Redis.ParsedTTL = ttl
+		fmt.Printf("DEBUG: Parsed Redis TTL to: %v\n", ttl)
 	}
 
 	return &config, nil
