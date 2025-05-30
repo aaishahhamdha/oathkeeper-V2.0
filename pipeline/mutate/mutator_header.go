@@ -101,30 +101,6 @@ func (a *MutatorHeader) config(config json.RawMessage) (*MutatorHeaderConfig, er
 	return &c, nil
 }
 
-func (m *MutatorHeader) MutateAndWriteResponse(w http.ResponseWriter, r *http.Request, session *pipeline.Session, config json.RawMessage, rule pipeline.Rule) error {
-	// Only mutate the response by adding headers/cookies
-	fmt.Println("Response mutator triggered - adding cookies and headers")
-
-	// Add cookie to response
-	cookie := &http.Cookie{
-		Name:     "WSO2session",
-		Value:    "1234567890",
-		Path:     "/",
-		Domain:   "https://loalhost:9444",
-		MaxAge:   3600,
-		Secure:   false,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-	}
-	http.SetCookie(w, cookie)
-
-	// You could also add other headers here if needed
-	// w.Header().Set("X-Custom-Header", "value")
-
-	// Return nil to continue with the normal response flow
-	return nil
-}
-
 func getRequestDomain(r *http.Request) string {
 	host := r.Host
 	if host == "" {
