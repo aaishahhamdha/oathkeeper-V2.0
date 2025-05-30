@@ -28,6 +28,7 @@ import (
 	"github.com/aaishahhamdha/oathkeeper/pipeline/authn"
 	"github.com/aaishahhamdha/oathkeeper/pipeline/authz"
 	"github.com/aaishahhamdha/oathkeeper/pipeline/mutate"
+	"github.com/aaishahhamdha/oathkeeper/pipeline/session_store"
 	"github.com/aaishahhamdha/oathkeeper/rule"
 )
 
@@ -63,6 +64,7 @@ type RegistryMemory struct {
 	authorizers    map[string]authz.Authorizer
 	mutators       map[string]mutate.Mutator
 	errors         map[string]pe.Handler
+	sessionStore   session_store.SessionStorer
 }
 
 func (r *RegistryMemory) Init() {
@@ -71,6 +73,22 @@ func (r *RegistryMemory) Init() {
 		r.Logger().WithError(err).Fatal("Access rule watcher could not be initialized.")
 	}
 	_ = r.RuleRepository()
+
+	// Initialize session store
+	storeConfig, err := r.c.SessionStoreConfig()
+	if err != nil {
+		r.Logger().WithError(err).Fatal("Failed to get session store configuration")
+	}
+
+	store, err := session_store.InitializeSessionStore(*storeConfig)
+	if err != nil {
+		r.Logger().WithError(err).Fatal("Failed to initialize session store")
+	}
+
+	r.sessionStore = store
+	session_store.GlobalStore = store // Set the global store for backward compatibility
+
+	r.Logger().Info("Session store initialized successfully")
 }
 
 func (r *RegistryMemory) RuleFetcher() rule.Fetcher {
@@ -424,4 +442,8 @@ func (r *RegistryMemory) Tracer() trace.Tracer {
 		}
 	}
 	return r.trc.Tracer()
+}
+
+func (r *RegistryMemory) SessionStore() session_store.SessionStorer {
+	return r.sessionStore
 }

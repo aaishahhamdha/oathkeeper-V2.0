@@ -33,6 +33,7 @@ import (
 	"github.com/ory/x/urlx"
 	"github.com/ory/x/watcherx"
 
+	"github.com/aaishahhamdha/oathkeeper/pipeline/session_store"
 	schema "github.com/aaishahhamdha/oathkeeper/spec"
 	"github.com/aaishahhamdha/oathkeeper/x"
 )
@@ -452,4 +453,43 @@ func (v *KoanfProvider) TLSConfig(daemon string) *TLSConfig {
 		v.l.Logger.Warnf("Failed to unmarshal TLS config for %s: %v", daemon, err)
 	}
 	return c
+}
+
+// Constants for session store configuration keys
+const (
+	SessionStoreKey      = "session_store"
+	SessionStoreTypeKey  = "session_store.type"
+	SessionStoreRedisKey = "session_store.redis"
+)
+
+// SessionStoreIsEnabled returns true if a session store is configured
+func (v *KoanfProvider) SessionStoreIsEnabled() bool {
+	return v.source.Exists(SessionStoreKey)
+}
+
+// SessionStoreConfig returns the session store configuration
+func (v *KoanfProvider) SessionStoreConfig() (*session_store.StoreConfig, error) {
+	if !v.SessionStoreIsEnabled() {
+		// Return default config if not explicitly configured
+		config := session_store.StoreConfig{
+			Type: session_store.InMemoryStore,
+		}
+		return &config, nil
+	}
+
+	var config session_store.StoreConfig
+	if err := v.source.Unmarshal(SessionStoreKey, &config); err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	// If Redis is configured, parse the TTL
+	if config.Type == session_store.RedisStoreType && config.Redis.TTL != "" {
+		ttl, err := time.ParseDuration(config.Redis.TTL)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		config.Redis.ParsedTTL = ttl
+	}
+
+	return &config, nil
 }

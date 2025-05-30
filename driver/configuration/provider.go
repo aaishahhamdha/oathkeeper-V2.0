@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aaishahhamdha/oathkeeper/pipeline/session_store"
 	"github.com/rs/cors"
 
 	"github.com/ory/fosite"
@@ -80,6 +81,9 @@ type Provider interface {
 	TLSConfig(daemon string) *TLSConfig
 
 	SetForTest(t testing.TB, key string, value interface{})
+
+	SessionStoreConfig() (*session_store.StoreConfig, error)
+	SessionStoreIsEnabled() bool
 }
 
 type ProviderErrorHandlers interface {

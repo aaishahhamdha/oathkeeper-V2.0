@@ -26,7 +26,23 @@ type StateEntry struct {
 	UserAgent string
 }
 
-// Store manages all active sessions and state entries
+// SessionStorer defines the interface for session storage implementations
+type SessionStorer interface {
+	AddSession(sess Session)
+	GetSession(id string) (Session, bool)
+	DeleteSession(id string)
+	CleanExpired()
+	GetField(id string, field string) (string, bool)
+	GetSessionCount() int
+	SessionExists(id string) bool
+
+	// State management methods
+	AddStateEntry(state string, ip, userAgent string)
+	ValidateAndRemoveState(state string) bool
+	CleanExpiredStates(maxAge time.Duration)
+}
+
+// Store implements the SessionStorer interface with in-memory storage
 type Store struct {
 	mu           sync.RWMutex
 	sessions     map[string]Session    // map of session ID to session
@@ -42,7 +58,7 @@ func NewStore() *Store {
 }
 
 // GlobalStore is the singleton instance of the session store
-var GlobalStore = NewStore()
+var GlobalStore SessionStorer
 
 // GenerateSessionID creates a new cryptographically secure random session ID
 func GenerateSessionID() (string, error) {
@@ -164,4 +180,22 @@ func (s *Store) SessionExists(id string) bool {
 	defer s.mu.RUnlock()
 	_, exists := s.sessions[id]
 	return exists
+}
+
+// InitGlobalStore initializes the global session store with the provided configuration
+func InitGlobalStore(config StoreConfig) error {
+	store, err := InitializeSessionStore(config)
+	if err != nil {
+		return err
+	}
+
+	GlobalStore = store
+	return nil
+}
+
+// DefaultConfig returns the default configuration for the session store
+func DefaultConfig() StoreConfig {
+	return StoreConfig{
+		Type: InMemoryStore,
+	}
 }

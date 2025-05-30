@@ -11,6 +11,7 @@ import (
 	"github.com/ory/x/healthx"
 
 	"github.com/aaishahhamdha/oathkeeper/pipeline/errors"
+	"github.com/aaishahhamdha/oathkeeper/pipeline/session_store"
 	"github.com/aaishahhamdha/oathkeeper/proxy"
 
 	"github.com/aaishahhamdha/oathkeeper/api"
@@ -55,6 +56,8 @@ type Registry interface {
 
 	x.RegistryWriter
 	x.RegistryLogger
+
+	SessionStore() session_store.SessionStorer
 }
 
 func NewRegistry(c configuration.Provider) Registry {
