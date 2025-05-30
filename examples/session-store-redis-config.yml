@@ -1,0 +1,72 @@
+# Example Oathkeeper configuration with Redis session store
+# This configuration shows how to configure Oathkeeper to use Redis for session storage
+
+serve:
+  proxy:
+    port: 4455
+    host: localhost
+  api:
+    port: 4456
+    host: localhost
+
+# Session Store Configuration - Redis Backend
+session_store:
+  type: redis
+  redis:
+    addr: "127.0.0.1:6379"
+    password: "your-redis-password"  # Optional, leave empty if no auth
+    db: 0
+    session_prefix: "oathkeeper:session:"
+    state_prefix: "oathkeeper:state:"
+    ttl: "24h"
+
+# Access Rules
+access_rules:
+  repositories:
+    - file://./rules.json
+
+# Authenticators
+authenticators:
+  noop:
+    enabled: true
+  
+  callback:
+    enabled: true
+    config:
+      client_id: "your-client-id"
+      client_secret: "your-client-secret"
+      redirect_url: "https://your-app.com/callback"
+      authorization_endpoint: "https://your-provider.com/oauth2/authorize"
+      token_endpoint: "https://your-provider.com/oauth2/token"
+      userinfo_url: "https://your-provider.com/oauth2/userinfo"
+      scopes: ["openid", "profile", "email"]
+
+# Authorizers
+authorizers:
+  allow:
+    enabled: true
+
+# Mutators
+mutators:
+  noop:
+    enabled: true
+  header:
+    enabled: true
+    config:
+      headers:
+        X-User: "{{ print .Subject }}"
+        X-User-Email: "{{ print .Extra.email }}"
+
+# Error Handlers
+errors:
+  fallback:
+    - json
+  handlers:
+    json:
+      enabled: true
+    redirect:
+      enabled: true
+      config:
+        to: "https://your-app.com/login"
+        when:
+          - error: ["unauthorized"]

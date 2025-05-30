@@ -130,6 +130,27 @@ errors:
               cidr:
                 - 127.0.0.0/24
 
+# Session Store Configuration
+# Configure the backend for session storage. Defaults to in-memory if not specified.
+session_store:
+  # Type of session store: "memory" (default) or "redis"
+  type: memory
+
+  # Redis configuration (only used when type is "redis")
+  redis:
+    # Redis server address
+    addr: "127.0.0.1:6379"
+    # Redis password (optional)
+    password: ""
+    # Redis database number (0-15)
+    db: 0
+    # Prefix for session keys
+    session_prefix: "session:"
+    # Prefix for state keys (CSRF protection)
+    state_prefix: "state:"
+    # Time to live for session data
+    ttl: "24h"
+
 # All authenticators can be configured under this configuration key
 authenticators:
   # Configures the anonymous authenticator
@@ -196,38 +217,38 @@ authenticators:
     config:
       # REQUIRED IF ENABLED - The OAuth 2.0 Client ID to be used for the callback flow
       client_id: your_client_id
-      
+
       # REQUIRED IF ENABLED - The OAuth 2.0 Client Secret to be used for the callback flow
       client_secret: your_client_secret
-      
+
       # REQUIRED IF ENABLED - The OAuth 2.0 Token Endpoint where tokens will be exchanged
       token_url: https://localhost:9443/oauth2/token
 
       userinfo_url: https://localhost:9443/userinfo
-      
+
       # REQUIRED IF ENABLED - The redirect URL where the callback will be sent
       redirect_url: http://localhost:4556/callback
-      
+
       # REQUIRED IF ENABLED - The authentication method for the token endpoint (supports "client_secret_basic" or "client_secret_post")
       token_endpoint_auth_method: client_secret_basic
-      
+
       # Optional configuration for retry behavior
       retry:
         # The maximum time to wait between retries. Defaults to "1s"
         max_wait: 1s
-        
+
         # The initial timeout for retries. Defaults to "500ms"
         timeout: 500ms
-      
+
       # Optional configuration for caching behavior
       cache:
         # The time-to-live for cached items. Defaults to "5m"
         ttl: 5m
-        
+
         # The maximum cost for the cache. Defaults to 1000
         max_cost: 1000
 
-        
+
   oauth2_introspection:
     # Set enabled to true if the authenticator should be enabled and false to disable the authenticator. Defaults to false.
     enabled: true
