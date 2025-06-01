@@ -7,7 +7,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
 
@@ -41,6 +40,7 @@ type (
 	}
 	ErrorRedirectDependencies interface {
 		x.RegistryWriter
+		x.RegistryLogger
 	}
 )
 
@@ -65,7 +65,7 @@ func (a *ErrorRedirect) Handle(w http.ResponseWriter, r *http.Request, config js
 	r.URL.Path = x.OrDefaultString(r.Header.Get(xForwardedUri), r.URL.Path)
 
 	if c.Type == "auth" {
-		fmt.Println("Redirect type: auth")
+		a.d.Logger().Debug("Redirect type: auth")
 		// Generate a random state for CSRF protection
 		state, err := GenerateRandomString(32)
 		if err != nil {
@@ -77,10 +77,13 @@ func (a *ErrorRedirect) Handle(w http.ResponseWriter, r *http.Request, config js
 		redirectURL := a.RedirectURL(r.URL, c) + "&state=" + state
 		// Perform the redirect
 		http.Redirect(w, r, redirectURL, c.Code)
-		fmt.Printf("Redirecting to: %s with state: %s\n", redirectURL, state)
+		a.d.Logger().WithFields(map[string]interface{}{
+			"redirect_url": redirectURL,
+			"state":        state,
+		}).Info("Redirecting to auth URL with state")
 	} else if c.Type == "logout" {
 
-		fmt.Println("Redirect type: logout")
+		a.d.Logger().Debug("Redirect type: logout")
 		if c.OidcLogoutUrl == "" {
 			return errors.New("oidc_logout_url is required")
 		}
@@ -92,33 +95,36 @@ func (a *ErrorRedirect) Handle(w http.ResponseWriter, r *http.Request, config js
 		sessionCookie, err := r.Cookie("wso2_session_id")
 		var idTokenHint string
 		if err == nil && sessionCookie != nil {
-			fmt.Printf("Logout: Found session cookie with ID: %s\n", sessionCookie.Value)
+			a.d.Logger().WithField("session_id", sessionCookie.Value).Debug("Logout: Found session cookie")
 
 			// Check if session exists before deletion
 			if _, exists := session_store.GlobalStore.GetSession(sessionCookie.Value); exists {
-				fmt.Println("Session exists in store, proceeding with logout")
+				a.d.Logger().Debug("Session exists in store, proceeding with logout")
 			} else {
-				fmt.Printf("Logout: Session %s not found in store", sessionCookie.Value)
+				a.d.Logger().WithField("session_id", sessionCookie.Value).Warn("Logout: Session not found in store")
 			}
 
 			// Get ID token for OIDC logout BEFORE deleting the session
 			idTokenHint, _ = session_store.GlobalStore.GetField(sessionCookie.Value, "id_token")
 			if idTokenHint != "" {
-				fmt.Println("Logout: ID token hint found for OIDC logout")
+				a.d.Logger().Debug("Logout: ID token hint found for OIDC logout")
 			} else {
-				fmt.Printf("Logout: No ID token found for session %s", sessionCookie.Value)
+				a.d.Logger().WithField("session_id", sessionCookie.Value).Debug("Logout: No ID token found for session")
 			}
 
 			// Now remove session from session store
 			session_store.GlobalStore.DeleteSession(sessionCookie.Value)
-			fmt.Printf("Logout: Successfully deleted session %s from store", sessionCookie.Value)
+			a.d.Logger().WithField("session_id", sessionCookie.Value).Info("Logout: Successfully deleted session from store")
 
 			// Verify session was deleted
 			deletedSession, exists := session_store.GlobalStore.GetSession(sessionCookie.Value)
-			fmt.Printf("Logout verification: Session exists after deletion: %v, Session data: %+v\n", exists, deletedSession)
+			a.d.Logger().WithFields(map[string]interface{}{
+				"session_exists": exists,
+				"session_data":   deletedSession,
+			}).Debug("Logout verification: Session deletion status")
 			session_store.GlobalStore.CleanExpired()
 		} else {
-			fmt.Println("Logout: No session cookie found in request")
+			a.d.Logger().Info("Logout: No session cookie found in request")
 		}
 
 		state, err := GenerateRandomString(32)
@@ -139,16 +145,16 @@ func (a *ErrorRedirect) Handle(w http.ResponseWriter, r *http.Request, config js
 		logoutURL.RawQuery = params.Encode()
 		logoutURLString := logoutURL.String()
 
-		fmt.Printf("Logout: Calling OIDC logout URL: %s\n", logoutURLString)
+		a.d.Logger().WithField("logout_url", logoutURLString).Info("Logout: Calling OIDC logout URL")
 		http.Redirect(w, r, logoutURLString, c.Code)
-		fmt.Printf("Redirecting to: %s\n", logoutURLString)
-		fmt.Println("Logout: Successfully completed logout process")
+		a.d.Logger().WithField("redirect_url", logoutURLString).Info("Redirecting to logout URL")
+		a.d.Logger().Info("Logout: Successfully completed logout process")
 	} else {
-		fmt.Println("Redirect type: none")
+		a.d.Logger().Debug("Redirect type: none")
 		// Type is "none" or any other value - just do a simple redirect
 		redirectURL := a.RedirectURL(r.URL, c)
 		http.Redirect(w, r, redirectURL, c.Code)
-		fmt.Printf("Redirecting to: %s\n", redirectURL)
+		a.d.Logger().WithField("redirect_url", redirectURL).Info("Redirecting to default URL")
 	}
 
 	return nil

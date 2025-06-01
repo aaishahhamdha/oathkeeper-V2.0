@@ -27,27 +27,27 @@ type StoreConfig struct {
 }
 
 // InitializeSessionStore creates and returns a SessionStorer based on the provided configuration
+// This function uses a default logger for backward compatibility
 func InitializeSessionStore(config StoreConfig) (SessionStorer, error) {
-	fmt.Printf("DEBUG: Initializing session store with type: %s\n", config.Type)
+	fmt.Printf("SESSION_STORE: Initializing session store with type: %s\n", config.Type)
 
 	switch config.Type {
 	case InMemoryStore, "":
 		// Default to in-memory store if not specified
-		fmt.Printf("DEBUG: Using in-memory session store\n")
+		fmt.Printf("SESSION_STORE: Using in-memory session store\n")
 		return NewStore(), nil
 
 	case RedisStoreType:
-		fmt.Printf("DEBUG: Attempting to initialize Redis session store with addr: %s\n", config.Redis.Addr)
+		fmt.Printf("SESSION_STORE: Attempting to initialize Redis session store with addr: %s\n", config.Redis.Addr)
 		store, err := NewRedisStore(config.Redis)
 		if err != nil {
-			fmt.Printf("DEBUG: Redis session store initialization failed: %v\n", err)
+			fmt.Printf("SESSION_STORE: Redis session store initialization failed: %v\n", err)
 			return nil, err
 		}
-		fmt.Printf("DEBUG: Successfully initialized Redis session store\n")
+		fmt.Printf("SESSION_STORE: Successfully initialized Redis session store\n")
 		return &redisStoreAdapter{store: store}, nil
 
 	default:
-		fmt.Printf("DEBUG: Unsupported session store type: %s\n", config.Type)
 		return nil, fmt.Errorf("unsupported session store type: %s", config.Type)
 	}
 }

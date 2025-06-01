@@ -4,7 +4,6 @@
 package api
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -73,7 +72,7 @@ func (h *DecisionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, next
 //	  404: genericError
 //	  500: genericError
 func (h *DecisionHandler) decisions(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("decisions function called")
+	h.r.Logger().Debug("decisions function called")
 	fields := map[string]interface{}{
 		"http_method":     r.Method,
 		"http_url":        r.URL.String(),
@@ -123,14 +122,14 @@ func (h *DecisionHandler) decisions(w http.ResponseWriter, r *http.Request) {
 
 	// Copy cookies from the authentication session to the response
 	copyCookies(w, s.Header)
-	fmt.Print("session id from header in decision:" + s.Header.Get("wso2_session_id"))
-	fmt.Printf("Extra information: %+v\n", s.Extra)
+	sessionID := s.Header.Get("wso2_session_id")
+	h.r.Logger().WithField("wso2_session_id", sessionID).Debug("Session ID from header in decision")
+	h.r.Logger().WithField("extra_info", s.Extra).Debug("Session extra information")
 	// If there's session data in Extra that needs to be sent to the client
 	if s.Extra != nil {
-		fmt.Printf("Extra information: %+v\n", s.Extra)
 		// Check for cookie information that needs to be set
 		if cookieInfo, ok := s.Extra["set_cookie"].(map[string]interface{}); ok {
-			fmt.Printf("Cookie information: %+v\n", cookieInfo)
+			h.r.Logger().WithField("cookie_info", cookieInfo).Debug("Setting cookie from session extra data")
 			cookie := &http.Cookie{
 				Name:     cookieInfo["name"].(string),
 				Value:    cookieInfo["value"].(string),

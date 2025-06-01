@@ -38,7 +38,6 @@ func (r *RedisStore) GetSessionCount() int {
 	// Use KEYS command with the session prefix pattern to count sessions
 	keys, err := r.client.Keys(r.ctx, r.sessionPrefix+"*").Result()
 	if err != nil {
-		fmt.Printf("DEBUG: Error counting sessions: %v\n", err)
 		return 0
 	}
 	return len(keys)
@@ -48,7 +47,6 @@ func (r *RedisStore) GetSessionCount() int {
 func (r *RedisStore) SessionExists(id string) bool {
 	exists, err := r.client.Exists(r.ctx, r.sessionPrefix+id).Result()
 	if err != nil {
-		fmt.Printf("DEBUG: Error checking if session exists: %v\n", err)
 		return false
 	}
 	return exists == 1
@@ -80,7 +78,7 @@ type RedisConfig struct {
 
 // NewRedisStore creates a new Redis-backed session store
 func NewRedisStore(config RedisConfig) (*RedisStore, error) {
-	fmt.Printf("DEBUG: Creating Redis store with addr: %s, DB: %d\n", config.Addr, config.DB)
+	fmt.Printf("SESSION_STORE: Creating Redis store with addr: %s, DB: %d\n", config.Addr, config.DB)
 
 	client := redis.NewClient(&redis.Options{
 		Addr:     config.Addr,
@@ -90,31 +88,27 @@ func NewRedisStore(config RedisConfig) (*RedisStore, error) {
 
 	// Test connection
 	ctx := context.Background()
-	fmt.Printf("DEBUG: Testing Redis connection...\n")
+	fmt.Printf("SESSION_STORE: Testing Redis connection...\n")
 	if err := client.Ping(ctx).Err(); err != nil {
-		fmt.Printf("DEBUG: Redis connection test failed: %v\n", err)
+		fmt.Printf("SESSION_STORE: Redis connection test failed: %v\n", err)
 		return nil, err
+
 	}
-	fmt.Printf("DEBUG: Redis connection successful\n")
+	fmt.Printf("SESSION_STORE: Redis connection successful\n")
 
 	sessionPrefix := "session:"
 	if config.SessionPrefix != "" {
 		sessionPrefix = config.SessionPrefix
 	}
-	fmt.Printf("DEBUG: Using session prefix: %s\n", sessionPrefix)
 
 	statePrefix := "state:"
 	if config.StatePrefix != "" {
 		statePrefix = config.StatePrefix
 	}
-	fmt.Printf("DEBUG: Using state prefix: %s\n", statePrefix)
 
 	// Default TTL if not set
 	if config.ParsedTTL == 0 {
 		config.ParsedTTL = 24 * time.Hour
-		fmt.Printf("DEBUG: Using default TTL: 24h\n")
-	} else {
-		fmt.Printf("DEBUG: Using configured TTL: %v\n", config.ParsedTTL)
 	}
 
 	return &RedisStore{

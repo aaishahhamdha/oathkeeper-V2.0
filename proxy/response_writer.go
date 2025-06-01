@@ -5,7 +5,6 @@ package proxy
 
 import (
 	"bytes"
-	"fmt"
 	"net/http"
 )
 
@@ -35,7 +34,6 @@ func (r *simpleResponseWriter) Write(b []byte) (int, error) {
 
 func (r *simpleResponseWriter) WriteHeader(statusCode int) {
 	r.code = statusCode
-	fmt.Printf("Session ID in response writer: %s\n", r.sessionID)
 	if r.sessionID != "" {
 		SessionCookie := http.Cookie{
 			Name:     "wso2_session_id",

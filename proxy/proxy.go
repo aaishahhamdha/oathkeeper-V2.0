@@ -5,7 +5,6 @@ package proxy
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httputil"
@@ -48,14 +47,14 @@ const (
 
 func (d *Proxy) RoundTrip(r *http.Request) (*http.Response, error) {
 	sess, _ := r.Context().Value(ContextKeySession).(*authn.AuthenticationSession)
-	fmt.Println("context: ", r.Context())
-	fmt.Println("Session information: ", sess)
+	d.r.Logger().WithField("context", r.Context()).Debug("Request context information")
+	d.r.Logger().WithField("session", sess).Debug("Session information")
 	WSO2SessionID := ""
 	if sess != nil {
-		fmt.Println("Session Extra: \n\n", sess.Extra)
-		fmt.Println("Session Header: \n\n", sess.Header)
-		fmt.Println("wso2_session_id:\n\n", sess.Header.Get("wso2_session_id"))
+		d.r.Logger().WithField("session_extra", sess.Extra).Debug("Session extra data")
+		d.r.Logger().WithField("session_header", sess.Header).Debug("Session header data")
 		WSO2SessionID = sess.Header.Get("wso2_session_id")
+		d.r.Logger().WithField("wso2_session_id", WSO2SessionID).Debug("WSO2 session ID from header")
 	}
 
 	rw := NewSimpleResponseWriter(WSO2SessionID)

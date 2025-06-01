@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -349,8 +348,8 @@ func (a *AuthenticatorCallback) Authenticate(r *http.Request, session *Authentic
 	}
 	id, err := session_store.GenerateSessionID()
 	if err != nil {
-		log.Fatalf("Failed to generate session ID: %v", err)
-		fmt.Printf("Failed to generate session ID: %v", err)
+		a.logger.WithError(err).Fatal("Failed to generate session ID")
+		return err
 	}
 
 	// Create session for session store, handling nil username safely
@@ -369,8 +368,8 @@ func (a *AuthenticatorCallback) Authenticate(r *http.Request, session *Authentic
 		IDToken:     tokenResponse.IDToken,
 	}
 	session_store.GlobalStore.AddSession(sess)
-	fmt.Printf("Session ID: %s\n", id)
-	fmt.Printf("Setting session id into authentication session \n")
+	a.logger.WithField("session_id", id).Info("Generated and stored session")
+	a.logger.Debug("Setting session ID into authentication session")
 	session.SetHeader("wso2_session_id", id)
 	session.Extra["wso2_session_id"] = id
 	return nil
