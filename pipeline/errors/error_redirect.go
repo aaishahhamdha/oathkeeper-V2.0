@@ -123,6 +123,10 @@ func (a *ErrorRedirect) Handle(w http.ResponseWriter, r *http.Request, config js
 				"session_data":   deletedSession,
 			}).Debug("Logout verification: Session deletion status")
 			session_store.GlobalStore.CleanExpired()
+
+			// Remove the wso2_session_id cookie from the client's browser
+			a.clearSessionCookie(w)
+			a.d.Logger().Info("Logout: Cleared wso2_session_id cookie from client")
 		} else {
 			a.d.Logger().Info("Logout: No session cookie found in request")
 		}
@@ -199,6 +203,21 @@ func (a *ErrorRedirect) RedirectURL(uri *url.URL, c *ErrorRedirectConfig) string
 	q.Set(c.ReturnToQueryParam, uri.String())
 	u.RawQuery = q.Encode()
 	return u.String()
+}
+
+// clearSessionCookie removes the wso2_session_id cookie from the client's browser
+// by setting it with an expired date and empty value
+func (a *ErrorRedirect) clearSessionCookie(w http.ResponseWriter) {
+	cookie := &http.Cookie{
+		Name:     "wso2_session_id",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		MaxAge:   -1,
+		SameSite: http.SameSiteLaxMode,
+	}
+	http.SetCookie(w, cookie)
 }
 
 // GenerateRandomState creates a cryptographically secure random state string

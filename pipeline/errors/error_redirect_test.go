@@ -550,6 +550,18 @@ func TestErrorRedirectLogoutType(t *testing.T) {
 					// Verify session was deleted from store
 					_, exists := session_store.GlobalStore.GetSession("test-session-123")
 					assert.False(t, exists)
+
+					// Verify that the wso2_session_id cookie is cleared
+					cookies := rw.Header().Values("Set-Cookie")
+					var foundClearCookie bool
+					for _, cookieStr := range cookies {
+						if strings.Contains(cookieStr, "wso2_session_id=") &&
+							(strings.Contains(cookieStr, "Max-Age=0") || strings.Contains(cookieStr, "Max-Age=-1")) {
+							foundClearCookie = true
+							break
+						}
+					}
+					assert.True(t, foundClearCookie, "Should set a cookie to clear wso2_session_id")
 				},
 			},
 		} {
