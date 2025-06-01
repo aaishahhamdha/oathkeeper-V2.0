@@ -5,7 +5,6 @@ package authn
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -224,8 +223,14 @@ func PrepareRequest(r *http.Request, cf AuthenticatorForwardConfig) (http.Reques
 		return http.Request{}, errors.WithStack(herodot.ErrInternalServerError.WithReasonf("Unable to parse session check URL: %s", err))
 	}
 
+	// If preserve_query is false, use query from original request (overwrite check_session_url query)
 	if !cf.GetPreserveQuery() {
 		reqURL.RawQuery = r.URL.RawQuery
+	}
+
+	// If preserve_path is false, use path from original request (overwrite check_session_url path)
+	if !cf.GetPreservePath() {
+		reqURL.Path = r.URL.Path
 	}
 
 	m := cf.GetForceMethod()
@@ -238,13 +243,6 @@ func PrepareRequest(r *http.Request, cf AuthenticatorForwardConfig) (http.Reques
 		URL:    reqURL,
 		Header: http.Header{},
 	}
-	fmt.Println("Request method: ", req.Method)
-	fmt.Println("Request URL: ", req.URL.String())
-	fmt.Println("Request headers: ", r.Header)
-	fmt.Println("Request preserve path: ", cf.GetPreservePath())
-	fmt.Println("Request preserve query: ", cf.GetPreserveQuery())
-	fmt.Println("Request preserve host: ", cf.GetPreserveHost())
-	fmt.Println("Request force method: ", cf.GetForceMethod())
 
 	// We need to copy only essential and configurable headers
 	for requested, v := range r.Header {

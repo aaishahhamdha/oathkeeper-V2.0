@@ -868,43 +868,6 @@
       "additionalProperties": false
 
     },
-    "configAuthenticatorsOidcAuthorize": {
-      "type": "object",
-      "title": "OIDC Authorize Authenticator Configuration",
-      "description": "Configuration for OIDC Authorization Code flow authenticator",
-      "required": ["auth_url", "client_id", "redirect_uri","scopes"],
-      "properties": {
-        "auth_url": {
-          "type": "string",
-          "format": "uri",
-          "description": "OIDC Provider's Authorization Endpoint URL"
-        },
-        "client_id": {
-          "type": "string",
-          "description": "The client ID registered with the OIDC provider"
-        },
-        "redirect_uri": {
-          "type": "string",
-          "format": "uri",
-          "description": "URI where OIDC provider will redirect after authentication",
-          "examples": ["https://my-app.com/callback"]
-        },
-        "scopes": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "Scopes to request during authentication",
-          "default": ["openid"],
-          "examples": [["openid", "profile", "email"]]
-        },
-        "session_ttl": {
-          "type": "string",
-          "default": "1h",
-          "description": "TTL for authenticated sessions",
-          "examples": ["30m", "1h", "8h"]
-        }
-      },
-      "additionalProperties": false
-  },
     "configAuthenticatorsOauth2Introspection": {
       "type": "object",
       "title": "OAuth 2.0 Introspection Authenticator Configuration",
@@ -1765,95 +1728,49 @@
           ]
         },
         "callback": {
-      "title": "Callback Authenticator",
-      "description": "The [`callback` authenticator] for handling OAuth 2.0 callback flows.",
-      "type": "object",
-      "properties": {
-        "enabled": {
-          "$ref": "#/definitions/handlerSwitch"
-        }
-      },
-      "oneOf": [
-        {
+          "title": "Callback Authenticator",
+          "description": "The [`callback` authenticator] for handling OAuth 2.0 callback flows.",
+          "type": "object",
           "properties": {
             "enabled": {
-              "const": true
-            },
-            "config": {
-              "$ref": "#/definitions/configAuthenticatorsCallback"
+              "$ref": "#/definitions/handlerSwitch"
             }
           },
-          "required": ["config"]
-        },
-        {
-          "properties": {
-            "enabled": {
-              "const": false
+          "oneOf": [
+            {
+              "properties": {
+                "enabled": {
+                  "const": true
+                },
+                "config": {
+                  "$ref": "#/definitions/configAuthenticatorsCallback"
+                }
+              },
+              "required": ["config"]
+            },
+            {
+              "properties": {
+                "enabled": {
+                  "const": false
+                }
+              }
             }
-          }
-        }
-      ]
-    },
-    "logout":{
-      "title": "Logout Authenticator",
-      "description": "The [`logout` authenticator] for handling OAuth 2.0 logout flows.",
-      "type": "object",
-      "properties": {
-        "enabled": {
-          "$ref": "#/definitions/handlerSwitch"
-        }
-      },
-      "oneOf": [
-        {
+          ]
+        },
+        "logout": {
+          "title": "Logout Authenticator",
+          "description": "The [`logout` authenticator] for handling OAuth 2.0 logout flows.",
+          "type": "object",
+          "additionalProperties": false,
           "properties": {
             "enabled": {
-              "const": true
+              "$ref": "#/definitions/handlerSwitch"
             },
             "config": {
               "$ref": "#/definitions/configAuthenticatorsLogout"
             }
-          },
-          "required": ["config"]
-        },
-        {
-          "properties": {
-            "enabled": {
-              "const": false
-            }
-          }
-        }
-      ]
-    },
-    "oidc_authorize": {
-    "title": "OIDC Authorize",
-    "description": "The OIDC Authorization Code flow authenticator",
-    "type": "object",
-    "properties": {
-      "enabled": {
-        "$ref": "#/definitions/handlerSwitch"
-      }
-    },
-    "oneOf": [
-      {
-        "properties": {
-          "enabled": {
-            "const": true
-          },
-          "config": {
-            "$ref": "#/definitions/configAuthenticatorsOidcAuthorize"
           }
         },
-        "required": ["config"]
-      },
-      {
-        "properties": {
-          "enabled": {
-            "const": false
-          }
-        }
-      }
-    ]
-  },
         "oauth2_introspection": {
           "title": "OAuth 2.0 Token Introspection",
           "description": "The [`oauth2_introspection` authenticator](https://www.ory.sh/oathkeeper/docs/pipeline/authn#oauth2_introspection).",

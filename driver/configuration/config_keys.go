@@ -75,6 +75,9 @@ const (
 
 	// callback
 	AuthenticatorCallbackIsEnabled Key = "authenticators.callback.enabled"
+
+	// logout
+	AuthenticatorLogoutIsEnabled Key = "authenticators.logout.enabled"
 )
 
 // Errors

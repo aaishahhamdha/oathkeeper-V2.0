@@ -228,11 +228,6 @@ func (a *AuthenticatorCallback) Authenticate(r *http.Request, session *Authentic
 	if cf.TokenEndpointAuthMethod == "client_secret_post" {
 		data.Set("client_id", cf.ClientID)
 		data.Set("client_secret", cf.ClientSecret)
-	} else if cf.TokenEndpointAuthMethod == "client_secret_basic" {
-		auth := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", cf.ClientID, cf.ClientSecret)))
-		r.Header.Set("Authorization", fmt.Sprintf("Basic %s", auth))
-	} else {
-		return errors.Errorf("unsupported token endpoint auth method: %s", cf.TokenEndpointAuthMethod)
 	}
 
 	// Now create the body
@@ -251,6 +246,14 @@ func (a *AuthenticatorCallback) Authenticate(r *http.Request, session *Authentic
 
 	// Set headers
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	// Set client credentials for client_secret_basic after request creation
+	if cf.TokenEndpointAuthMethod == "client_secret_basic" {
+		auth := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", cf.ClientID, cf.ClientSecret)))
+		req.Header.Set("Authorization", fmt.Sprintf("Basic %s", auth))
+	} else if cf.TokenEndpointAuthMethod != "client_secret_post" {
+		return errors.Errorf("unsupported token endpoint auth method: %s", cf.TokenEndpointAuthMethod)
+	}
 
 	// Make the request using the pre-configured client
 	resp, err := client.Do(req)
@@ -328,10 +331,17 @@ func (a *AuthenticatorCallback) Authenticate(r *http.Request, session *Authentic
 		session.Extra = make(map[string]interface{})
 	}
 
-	// Store the user information in the session
+	// Set the subject from the userinfo response
+	session.Subject = userInfoResponse.Sub
+
+	// Store the user information in the session, converting pointers to values
 	session.Extra["sub"] = userInfoResponse.Sub
-	session.Extra["username"] = userInfoResponse.Username
-	session.Extra["name"] = userInfoResponse.Name
+	if userInfoResponse.Username != nil {
+		session.Extra["username"] = *userInfoResponse.Username
+	}
+	if userInfoResponse.Name != nil {
+		session.Extra["name"] = *userInfoResponse.Name
+	}
 
 	// Set the Authorization header for the session
 	if tokenResponse.AccessToken != "" {
@@ -342,9 +352,16 @@ func (a *AuthenticatorCallback) Authenticate(r *http.Request, session *Authentic
 		log.Fatalf("Failed to generate session ID: %v", err)
 		fmt.Printf("Failed to generate session ID: %v", err)
 	}
+
+	// Create session for session store, handling nil username safely
+	username := ""
+	if userInfoResponse.Username != nil {
+		username = *userInfoResponse.Username
+	}
+
 	sess := session_store.Session{
 		ID:          id,
-		Username:    *userInfoResponse.Username,
+		Username:    username,
 		Sub:         userInfoResponse.Sub,
 		IssuedAt:    time.Now(),
 		ExpiresAt:   time.Now().Add(1 * time.Hour),

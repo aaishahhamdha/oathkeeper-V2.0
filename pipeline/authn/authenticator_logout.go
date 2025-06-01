@@ -23,7 +23,7 @@ type AuthenticatorLogoutConfiguration struct {
 	OidcLogoutUrl         string                                 `json:"oidc_logout_url"`
 	PostLogoutRedirectUrl string                                 `json:"post_logout_redirect_url"`
 	Retry                 *AuthenticatorLogoutRetryConfiguration `json:"retry"`
-	Cache                 cacheConfig
+	Cache                 logoutCacheConfig                      `json:"cache"`
 }
 
 type AuthenticatorLogoutRetryConfiguration struct {
